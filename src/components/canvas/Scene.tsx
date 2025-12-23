@@ -5,11 +5,14 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import type { Points, BufferGeometry, PointsMaterial } from 'three'
 import * as THREE from 'three'
 import { useMusicStore } from '@/stores/musicStore'
+import { useFeatureFlagsStore } from '@/stores/featureFlagsStore'
 import { ArtistStars } from './ArtistStars'
 import { CameraController } from './CameraController'
 import { ConnectionLines } from './ConnectionLines'
 import { GenreNebulae } from './GenreNebulae'
+import { PersistentLabels } from './PersistentLabels'
 import { Effects } from './Effects'
+import { TouchControls } from './TouchControls'
 
 // Test particle system - will be replaced with actual star field
 function TestParticles(): React.JSX.Element {
@@ -94,10 +97,15 @@ export function Scene(): React.JSX.Element {
   const hasArtists = galaxyData && galaxyData.artists.length > 0
   const controlsRef = useRef<OrbitControlsImpl>(null)
 
+  // Feature flags
+  const debugMode = useFeatureFlagsStore((state) => state.debugMode)
+  const nebulasEnabled = useFeatureFlagsStore((state) => state.nebulasEnabled)
+  const showLabels = useFeatureFlagsStore((state) => state.showLabels)
+
   return (
     <>
-      {/* Performance monitor (toggle with 'p' key or remove in production) */}
-      <Stats showPanel={0} className="stats-panel" />
+      {/* Performance monitor (only in debug mode) */}
+      {debugMode && <Stats showPanel={0} className="stats-panel" />}
 
       {/* Camera controls */}
       <OrbitControls
@@ -109,6 +117,9 @@ export function Scene(): React.JSX.Element {
         autoRotate={!hasArtists} // Stop auto-rotate when showing real data
         autoRotateSpeed={0.3}
       />
+
+      {/* Mobile touch controls enhancement */}
+      <TouchControls controlsRef={controlsRef} />
 
       {/* Camera fly-to animation controller */}
       <CameraController controlsRef={controlsRef} />
@@ -127,11 +138,14 @@ export function Scene(): React.JSX.Element {
         speed={0.5}
       />
 
-      {/* Genre nebulae (render first, behind stars) */}
-      {hasArtists && <GenreNebulae />}
+      {/* Genre nebulae (render first, behind stars) - can be toggled for performance */}
+      {hasArtists && nebulasEnabled && <GenreNebulae />}
 
       {/* Artist stars (from Spotify data) or test particles (fallback) */}
       {hasArtists ? <ArtistStars /> : <TestParticles />}
+
+      {/* Persistent artist labels (top artists + nearby) */}
+      {hasArtists && showLabels && <PersistentLabels />}
 
       {/* Connection lines between related artists */}
       {hasArtists && <ConnectionLines />}
