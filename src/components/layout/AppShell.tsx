@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { AudioIndicator } from '@/components/ui/AudioIndicator'
+import { ArtistSearch } from '@/components/ui/ArtistSearch'
+import { TimeRangeToggle } from '@/components/ui/TimeRangeToggle'
 
 interface AppShellProps {
   children: ReactNode
@@ -24,17 +26,23 @@ export function AppShell({ children }: AppShellProps): React.JSX.Element {
         </div>
 
         {isAuthenticated && (
-          <button
-            onClick={logout}
-            className="pointer-events-auto px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-4 pointer-events-auto">
+            <TimeRangeToggle />
+            <button
+              onClick={logout}
+              className="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         )}
       </header>
 
       {/* Global audio indicator */}
       {isAuthenticated && <AudioIndicator />}
+
+      {/* Artist search */}
+      {isAuthenticated && <ArtistSearch />}
 
       {/* Controls hint */}
       <div className="absolute bottom-4 left-4 text-xs text-gray-500 pointer-events-none">

@@ -19,6 +19,10 @@ interface UIState {
   previewingTrackId: string | null
   previewVolume: number
 
+  // Search
+  searchQuery: string
+  isSearchOpen: boolean
+
   // Actions
   selectArtist: (artistId: string | null) => void
   selectGenre: (genreId: string | null) => void
@@ -30,6 +34,9 @@ interface UIState {
   toggleControls: () => void
   setPreviewingTrack: (trackId: string | null) => void
   setPreviewVolume: (volume: number) => void
+  setSearchQuery: (query: string) => void
+  toggleSearch: () => void
+  closeSearch: () => void
   resetSelection: () => void
   resetCamera: () => void
 }
@@ -53,6 +60,8 @@ export const useUIStore = create<UIState>((set) => ({
   showControls: true,
   previewingTrackId: null,
   previewVolume: 0.5,
+  searchQuery: '',
+  isSearchOpen: false,
 
   // Actions
   selectArtist: (artistId): void => {
@@ -98,6 +107,21 @@ export const useUIStore = create<UIState>((set) => ({
 
   setPreviewVolume: (volume): void => {
     set({ previewVolume: Math.max(0, Math.min(1, volume)) })
+  },
+
+  setSearchQuery: (query): void => {
+    set({ searchQuery: query })
+  },
+
+  toggleSearch: (): void => {
+    set((state) => ({
+      isSearchOpen: !state.isSearchOpen,
+      searchQuery: state.isSearchOpen ? '' : state.searchQuery,
+    }))
+  },
+
+  closeSearch: (): void => {
+    set({ isSearchOpen: false, searchQuery: '' })
   },
 
   resetSelection: (): void => {
