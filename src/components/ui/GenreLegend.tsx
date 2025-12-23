@@ -34,7 +34,7 @@ function GenreItem({
 }
 
 export function GenreLegend(): React.JSX.Element | null {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true)
   const galaxyData = useMusicStore((state) => state.galaxyData)
   const selectedGenreId = useUIStore((state) => state.selection.genreId)
   const selectedArtistId = useUIStore((state) => state.selection.artistId)
