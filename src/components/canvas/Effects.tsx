@@ -10,11 +10,11 @@ export function Effects(): React.JSX.Element {
   return (
     <EffectComposer>
       <Bloom
-        intensity={0.8} // Bloom strength
-        luminanceThreshold={0.2} // Only bloom bright areas
+        intensity={1.0} // Increased bloom strength for more glow
+        luminanceThreshold={0.15} // Lower threshold = more stars bloom
         luminanceSmoothing={0.9} // Smooth transition
         mipmapBlur // Better quality blur
-        radius={0.8} // Bloom spread
+        radius={0.85} // Slightly wider bloom spread
       />
       <Vignette
         offset={0.3} // Start of vignette

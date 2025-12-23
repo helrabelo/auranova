@@ -6,7 +6,7 @@ import * as THREE from 'three'
 import { useMusicStore } from '@/stores/musicStore'
 import { useFeatureFlagsStore } from '@/stores/featureFlagsStore'
 import { useUserProfile } from '@/api/hooks'
-import { GalaxyStars } from './GalaxyStars'
+import { PlanetStars } from './PlanetStars'
 import { CameraController } from './CameraController'
 import { ConnectionLines } from './ConnectionLines'
 import { GenreNebulae } from './GenreNebulae'
@@ -20,7 +20,7 @@ function ProfileSphere({ imageUrl }: { imageUrl: string }): React.JSX.Element {
 
   return (
     <mesh>
-      <sphereGeometry args={[1.5, 32, 32]} />
+      <sphereGeometry args={[3, 32, 32]} />
       <meshBasicMaterial map={texture} />
     </mesh>
   )
@@ -46,7 +46,7 @@ function CentralOrb(): React.JSX.Element {
     []
   )
   const particleRadii = useMemo(
-    () => new Float32Array(particleCount).map(() => 3 + Math.random() * 1.5),
+    () => new Float32Array(particleCount).map(() => 5 + Math.random() * 2),
     []
   )
   const particleSpeeds = useMemo(
@@ -91,9 +91,9 @@ function CentralOrb(): React.JSX.Element {
 
   return (
     <group>
-      {/* Outer translucent sphere */}
+      {/* Outer translucent sphere - larger nucleus */}
       <mesh ref={outerRef}>
-        <sphereGeometry args={[2, 32, 32]} />
+        <sphereGeometry args={[4, 32, 32]} />
         <meshBasicMaterial color="#8b5cf6" transparent opacity={0.3} />
       </mesh>
 
@@ -101,7 +101,7 @@ function CentralOrb(): React.JSX.Element {
       {profileImageUrl ? (
         <Suspense fallback={
           <mesh ref={innerRef}>
-            <sphereGeometry args={[1.5, 24, 24]} />
+            <sphereGeometry args={[3, 24, 24]} />
             <meshBasicMaterial color="#a78bfa" transparent opacity={0.8} />
           </mesh>
         }>
@@ -111,26 +111,26 @@ function CentralOrb(): React.JSX.Element {
         <>
           {/* Inner glowing core */}
           <mesh ref={innerRef}>
-            <sphereGeometry args={[1.2, 24, 24]} />
+            <sphereGeometry args={[2.5, 24, 24]} />
             <meshBasicMaterial color="#a78bfa" transparent opacity={0.8} />
           </mesh>
           {/* Bright center point */}
           <mesh>
-            <sphereGeometry args={[0.5, 16, 16]} />
+            <sphereGeometry args={[1, 16, 16]} />
             <meshBasicMaterial color="#ddd6fe" />
           </mesh>
         </>
       )}
 
-      {/* Orbital ring / accretion disk */}
+      {/* Orbital ring / accretion disk - scaled up */}
       <mesh ref={ringRef} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[3.5, 0.15, 16, 64]} />
+        <torusGeometry args={[6, 0.2, 16, 64]} />
         <meshBasicMaterial color="#c4b5fd" transparent opacity={0.6} />
       </mesh>
 
       {/* Secondary thinner ring */}
       <mesh rotation={[Math.PI / 2 + 0.3, 0.2, 0]}>
-        <torusGeometry args={[4.2, 0.08, 12, 48]} />
+        <torusGeometry args={[7, 0.12, 12, 48]} />
         <meshBasicMaterial color="#a78bfa" transparent opacity={0.4} />
       </mesh>
 
@@ -208,8 +208,8 @@ export function Scene(): React.JSX.Element {
       {/* Genre nebulae (render first, behind stars) - can be toggled for performance */}
       {hasArtists && nebulasEnabled && <GenreNebulae />}
 
-      {/* Unified galaxy stars - handles skeleton, loading, revealing, and active states */}
-      <GalaxyStars />
+      {/* Planet-style stars - 3D spheres with procedural textures */}
+      <PlanetStars />
 
       {/* Persistent artist labels (top artists + nearby) */}
       {hasArtists && showLabels && <PersistentLabels />}

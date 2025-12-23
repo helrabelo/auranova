@@ -127,12 +127,37 @@ export function calculateAudioProfile(
 }
 
 /**
- * Transform Spotify popularity (0-100) to star size (0.5-3.0)
+ * Planet size categories - small, medium, large
+ * Randomly assigned for visual variety
  */
-function popularityToSize(popularity: number): number {
-  const minSize = 0.5
-  const maxSize = 3.0
-  return minSize + (popularity / 100) * (maxSize - minSize)
+const PLANET_SIZES = {
+  sm: 0.4,
+  md: 0.6,
+  lg: 0.9,
+} as const
+
+/**
+ * Seeded random number generator for consistent sizes per artist
+ */
+function seededRandom(seed: string): number {
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) {
+    const char = seed.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash
+  }
+  return Math.abs(hash % 1000) / 1000
+}
+
+/**
+ * Get planet size based on artist ID (deterministic random assignment)
+ * Uses 3 discrete sizes: sm, md, lg
+ */
+function popularityToSize(_popularity: number, artistId: string = ''): number {
+  const random = seededRandom(artistId)
+  if (random < 0.33) return PLANET_SIZES.sm
+  if (random < 0.66) return PLANET_SIZES.md
+  return PLANET_SIZES.lg
 }
 
 /**
@@ -232,7 +257,7 @@ export function transformArtist(
     spotifyUrl: artist.external_urls.spotify,
     followers: artist.followers.total,
     position,
-    size: popularityToSize(artist.popularity),
+    size: popularityToSize(artist.popularity, artist.id),
     color: dominantGenreColor(artist.genres),
     brightness: popularityToBrightness(artist.popularity),
   }

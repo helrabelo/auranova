@@ -27,10 +27,14 @@ void main() {
     discard;
   }
 
-  // Create soft glow falloff
-  float coreSize = 0.3;
+  // Create soft glow falloff with brighter core
+  float coreSize = 0.2; // Smaller core = brighter center point
   float core = 1.0 - smoothstep(0.0, coreSize, dist);
   float glow = 1.0 - smoothstep(coreSize, 1.0, dist);
+
+  // Add subtle inner ring for depth/dimension
+  float innerRing = smoothstep(0.15, 0.25, dist) * (1.0 - smoothstep(0.3, 0.45, dist));
+  float innerRingIntensity = innerRing * 0.3;
 
   // Phase-adjusted glow intensity
   float phaseGlow = uGlowIntensity;
@@ -46,8 +50,8 @@ void main() {
   float audioMultiplier = uPhase >= 3.0 ? 1.0 : 0.3;
   float audioGlow = phaseGlow * (1.0 + uAudioAverage * 0.5 * audioMultiplier);
 
-  // Combine core and glow
-  float alpha = core + glow * audioGlow * 0.6;
+  // Combine core, inner ring, and glow
+  float alpha = core + innerRingIntensity + glow * audioGlow * 0.6;
 
   // Apply brightness
   vec3 finalColor = vColor * vBrightness;
@@ -111,6 +115,10 @@ void main() {
   // Add slight color boost to the core
   float coreBoost = core * (1.0 + uAudioAverage * 0.3 * audioMultiplier);
   finalColor += vec3(0.1, 0.1, 0.15) * coreBoost;
+
+  // Add subtle color variation to inner ring for depth
+  vec3 ringColor = vColor * 1.2 + vec3(0.05, 0.05, 0.1);
+  finalColor += ringColor * innerRingIntensity * 0.5;
 
   // Distance-based fog
   float fog = 1.0 - smoothstep(100.0, 500.0, vDistance);

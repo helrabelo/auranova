@@ -6,7 +6,7 @@
 import type { TimeRange } from '@/types/domain'
 
 const CACHE_KEY_PREFIX = 'auranova:positions:'
-const CACHE_VERSION = 1
+const CACHE_VERSION = 3 // Incremented for 3D spherical orbital positioning
 
 interface CacheEntry {
   version: number
