@@ -94,22 +94,27 @@ export function DataLoader(): React.JSX.Element | null {
   // Transform and store data when all data is loaded
   useEffect(() => {
     if (artists && artists.length > 0) {
-      // Transform with audio features and D3 force simulation
-      let newGalaxyData = transformToGalaxyData(artists, {
-        tracks: tracks ?? [],
-        audioFeatures: audioFeatures ?? [],
-        timeRange, // For position caching
-      })
+      try {
+        // Transform with audio features and D3 force simulation
+        let newGalaxyData = transformToGalaxyData(artists, {
+          tracks: tracks ?? [],
+          audioFeatures: audioFeatures ?? [],
+          timeRange, // For position caching
+        })
 
-      // Detect evolution only if this is a time range change
-      if (isTimeRangeChange.current && previousGalaxyDataRef.current) {
-        newGalaxyData = detectEvolution(newGalaxyData, previousGalaxyDataRef.current)
-        isTimeRangeChange.current = false // Reset flag
+        // Detect evolution only if this is a time range change
+        if (isTimeRangeChange.current && previousGalaxyDataRef.current) {
+          newGalaxyData = detectEvolution(newGalaxyData, previousGalaxyDataRef.current)
+          isTimeRangeChange.current = false // Reset flag
+        }
+
+        setGalaxyData(newGalaxyData)
+      } catch (error) {
+        console.error('Failed to transform galaxy data:', error)
+        setError(error instanceof Error ? error.message : 'Failed to process music data')
       }
-
-      setGalaxyData(newGalaxyData)
     }
-  }, [artists, tracks, audioFeatures, timeRange, setGalaxyData])
+  }, [artists, tracks, audioFeatures, timeRange, setGalaxyData, setError])
 
   // This component renders nothing
   return null

@@ -109,12 +109,17 @@ export function OnboardingOverlay({ onStartLogin }: OnboardingOverlayProps): Rea
     previousAuthRef.current = isAuthenticated
 
     // Already authenticated with data
-    if (isAuthenticated && galaxyData) {
+    if (isAuthenticated && galaxyData && galaxyData.artists.length > 0) {
       setState('hidden')
     }
     // Authenticated, loading music data
     else if (isAuthenticated && musicLoading) {
       setState('loading')
+    }
+    // Authenticated, finished loading, waiting for data transformation
+    else if (isAuthenticated && !musicLoading && !galaxyData && state === 'loading') {
+      // Stay in loading state - data is being transformed
+      // Add a safety timeout in case something goes wrong
     }
     // Not authenticated
     else if (!isAuthenticated && !authLoading) {
@@ -122,7 +127,7 @@ export function OnboardingOverlay({ onStartLogin }: OnboardingOverlayProps): Rea
       setIsConnecting(false)
     }
     return undefined
-  }, [isAuthenticated, musicLoading, galaxyData, authLoading])
+  }, [isAuthenticated, musicLoading, galaxyData, authLoading, state])
 
   // Cycle through loading messages
   useEffect(() => {
