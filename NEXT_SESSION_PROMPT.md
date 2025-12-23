@@ -1,110 +1,158 @@
-# AuraNova - Phase 10: Mobile Pan & Nucleus Visual Enhancement
+# AuraNova - Phase 11: Star Animation & Visual Polish
 
 ## Tasks for This Session
 
-### 1. Mobile Pan Feature (Two-Finger Drag)
+### 1. Fix Star Loading Animation (High Priority)
 
-Currently, mobile touch controls support:
-- **One finger**: Rotate the galaxy
-- **Two finger pinch**: Zoom in/out
+**Problem**: The skeleton loading animation shows correctly, but when real artist data loads, the stars just "blink" into existence instantly. There's no smooth transition or reveal animation - they should animate in gracefully.
 
-**Add two-finger drag to pan the camera**, allowing users to move the view around without rotating.
+#### Expected Behavior
+1. Skeleton stars show during loading (working ✓)
+2. When data loads, stars should animate in with:
+   - Fade in from transparent to full opacity
+   - Scale up from small to full size
+   - Possibly staggered timing (closest to center first, or by popularity)
 
-#### Implementation Location
-- `src/components/canvas/TouchControls.tsx` - Touch gesture handling
-- `src/components/canvas/Scene.tsx` - OrbitControls configuration
+#### Current Behavior
+- Skeleton works
+- Real stars appear instantly with no transition
+- Feels jarring and unpolished
 
-#### Technical Notes
-- OrbitControls supports `enablePan` which is likely disabled
-- Need to configure `touches.TWO` to support both DOLLY and PAN
-- Consider using `THREE.TOUCH.DOLLY_PAN` (value 2) which combines both
-- Current config in TouchControls.tsx:
-  ```typescript
-  controls.touches = {
-    ONE: TOUCH.ROTATE,
-    TWO: TOUCH.DOLLY_PAN, // Already set, but may need pan speed tuning
-  }
-  ```
-- May need to adjust `panSpeed` for comfortable mobile panning
-- Consider adding a three-finger gesture for pan-only if DOLLY_PAN feels awkward
+#### Key Files to Investigate
+- `src/components/canvas/GalaxyStars.tsx` - Main star rendering component
+- `src/simulation/dataTransform.ts` - Transforms Spotify data to galaxy positions
+- `src/components/DataLoader.tsx` - Handles data fetching states
 
-#### Acceptance Criteria
-- Two-finger drag pans the camera (moves view left/right/up/down)
-- Pinch-to-zoom still works simultaneously
-- Pan feels smooth and responsive on mobile
-- Pan boundaries prevent getting lost in space
+#### Debugging Steps
+1. Check if there's a `revealed` or `animating` state that's not being used
+2. Look for transition CSS/Three.js animations that might be skipped
+3. Check timing between skeleton → real data states
+4. Verify the animation frames are actually running
+
+#### Possible Causes
+- State change happens too fast, skipping animation frames
+- Animation start condition not triggering properly
+- CSS transitions not applying to Three.js meshes (need useFrame animations)
+- Race condition between data loading and render
 
 
-### 2. Central Nucleus Visual "Notch" Enhancement
+### 2. Enhanced Star Visuals (Planet-like Appearance)
 
-The central orb (`CentralOrb` component in Scene.tsx) needs a visual enhancement - add a "notch" or distinctive visual element to make it more interesting.
+**Problem**: Stars currently look like simple glowing dots. They should look more alive and planet-like.
 
 #### Current Implementation
-```typescript
-function CentralOrb(): React.JSX.Element {
-  const meshRef = useRef<THREE.Mesh>(null)
-
-  useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.scale.setScalar(
-        1 + Math.sin(state.clock.elapsedTime * 2) * 0.05
-      )
-    }
-  })
-
-  return (
-    <mesh ref={meshRef}>
-      <sphereGeometry args={[2, 32, 32]} />
-      <meshBasicMaterial color="#8b5cf6" transparent opacity={0.6} />
-    </mesh>
-  )
-}
-```
+Stars are likely simple `<mesh>` with `sphereGeometry` and basic material with glow effect from bloom post-processing.
 
 #### Enhancement Ideas
-- Add a glowing ring/torus around the nucleus
-- Add particle emissions from the center
-- Add a pulsing inner core with different color
-- Add an accretion disk effect (flat ring with gradient)
-- Add a "notch" indent or protrusion with emissive glow
-- Add orbiting mini-particles
+
+**Option A: Multi-layer Planet Effect**
+```tsx
+<group>
+  {/* Core solid sphere */}
+  <mesh>
+    <sphereGeometry args={[size, 16, 16]} />
+    <meshBasicMaterial color={artistColor} />
+  </mesh>
+
+  {/* Atmosphere glow layer */}
+  <mesh scale={1.3}>
+    <sphereGeometry args={[size, 16, 16]} />
+    <meshBasicMaterial color={artistColor} transparent opacity={0.3} />
+  </mesh>
+
+  {/* Outer halo */}
+  <sprite>
+    <spriteMaterial
+      map={glowTexture}
+      color={artistColor}
+      transparent
+      opacity={0.5}
+    />
+  </sprite>
+</group>
+```
+
+**Option B: Shader-based Glow**
+- Custom shader with fresnel effect for rim lighting
+- Animated pulse based on artist popularity or audio features
+
+**Option C: Ring/Notch Detail**
+- Small orbital ring around larger stars
+- Surface "notch" or texture variation
+- Subtle rotation animation
 
 #### Acceptance Criteria
-- Nucleus has a visually distinctive feature beyond plain sphere
-- Animation/glow makes it feel alive
-- Doesn't distract from the artist stars
-- Performs well on mobile
+- Stars have visible depth/dimension (not flat dots)
+- Each star feels "alive" with subtle animation
+- Performance remains good on mobile (50+ stars)
+- Visual hierarchy preserved (popular artists = bigger/brighter)
 
 
 ## Current State Summary
 
-### Recent Changes (This Session)
-- Fixed mobile touch rotation (was using wrong TOUCH constant)
-- Improved mobile UI with bottom sheet artist panel
-- Added loading timeout (30s) with retry/logout options
-- Genre legend and settings hide on mobile when artist panel is open
-- Responsive header and controls
+### Recent Changes (Last Session)
+- Added mobile pan gesture (two-finger drag)
+- Enhanced central nucleus with orbital rings and particles
+- Added user's Spotify profile image to nucleus center
+- Fixed z-index issues on mobile
+- Fixed artist card play button
 
 ### Key Files Reference
-- `src/components/canvas/Scene.tsx` - Main 3D scene with CentralOrb
-- `src/components/canvas/TouchControls.tsx` - Mobile touch handling
-- `src/components/canvas/CameraController.tsx` - Camera animations
-- `src/components/ui/ArtistPanel.tsx` - Mobile-friendly bottom sheet
+- `src/components/canvas/GalaxyStars.tsx` - Star rendering (MAIN FILE FOR THIS SESSION)
+- `src/components/canvas/Scene.tsx` - Main scene with CentralOrb
+- `src/components/canvas/Effects.tsx` - Post-processing (bloom, etc.)
+- `src/simulation/dataTransform.ts` - Data transformation
+- `src/types/domain.ts` - GalaxyArtist type definition
 
-### Testing
+### Architecture Notes
+- Stars use instanced rendering for performance (likely `<instancedMesh>`)
+- Each artist has: position, size, color, popularity, genres
+- Bloom effect in Effects.tsx provides some glow
+- GalaxyStars handles multiple states: skeleton, loading, revealed, active
+
+
+## Testing
+
 ```bash
 npm run dev
 ```
 
-Test on mobile device or Chrome DevTools mobile emulation:
-1. Test two-finger pan gesture
-2. Verify pinch-to-zoom still works
-3. Check nucleus visual enhancement
-4. Ensure performance is acceptable on mobile
+Test scenarios:
+1. Fresh load - watch for skeleton → real stars transition
+2. Change time range (4W/6M/All) - should animate between states
+3. Zoom in close to stars - check visual detail
+4. Performance on mobile with 50+ stars
 
 
-## Notes
+## Technical Notes
 
-- Spotify app is in Development Mode - only allowlisted users can test
-- To add test users: Spotify Dashboard → App → Settings → User Management
-- For public release, need to submit app for Spotify review
+### Three.js Animation Pattern
+```tsx
+useFrame((state, delta) => {
+  // Animate scale
+  if (meshRef.current && currentScale < targetScale) {
+    meshRef.current.scale.lerp(targetScale, delta * 2)
+  }
+
+  // Animate opacity (if using transparent material)
+  if (materialRef.current) {
+    materialRef.current.opacity = THREE.MathUtils.lerp(
+      materialRef.current.opacity,
+      targetOpacity,
+      delta * 2
+    )
+  }
+})
+```
+
+### Staggered Animation Pattern
+```tsx
+const staggerDelay = index * 50 // 50ms between each star
+const animationProgress = Math.max(0, (elapsedTime - staggerDelay) / animationDuration)
+```
+
+### Performance Considerations
+- Use instanced rendering for 50+ objects
+- Limit shader complexity on mobile
+- Consider LOD (level of detail) based on distance
+- Batch material updates where possible
