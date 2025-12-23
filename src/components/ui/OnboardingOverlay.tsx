@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { useMusicStore } from '@/stores/musicStore'
+import { useUIStore } from '@/stores/uiStore'
 
 /**
  * Onboarding transition states
@@ -25,15 +26,72 @@ interface OnboardingOverlayProps {
   onStartLogin: () => void
 }
 
+const SKIP_HINT_DELAY = 2000 // Show skip hint after 2 seconds of reveal
+
 export function OnboardingOverlay({ onStartLogin }: OnboardingOverlayProps): React.JSX.Element | null {
   const { isAuthenticated, isLoading: authLoading, error: authError } = useAuthStore()
   const { isLoading: musicLoading, galaxyData } = useMusicStore()
 
+  // Galaxy phase from store for skip functionality
+  const galaxyPhase = useUIStore((state) => state.galaxyPhase)
+  const triggerSkipReveal = useUIStore((state) => state.triggerSkipReveal)
+
   const [state, setState] = useState<OnboardingState>('welcome')
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [showSkipHint, setShowSkipHint] = useState(false)
   const previousAuthRef = useRef(isAuthenticated)
   const messageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const skipHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Handle skip action (keyboard/touch)
+  const handleSkip = useCallback(() => {
+    if (galaxyPhase === 'revealing') {
+      triggerSkipReveal()
+      setShowSkipHint(false)
+    }
+  }, [galaxyPhase, triggerSkipReveal])
+
+  // Show skip hint after 2 seconds of reveal
+  useEffect(() => {
+    if (galaxyPhase === 'revealing') {
+      skipHintTimerRef.current = setTimeout(() => {
+        setShowSkipHint(true)
+      }, SKIP_HINT_DELAY)
+
+      return () => {
+        if (skipHintTimerRef.current) {
+          clearTimeout(skipHintTimerRef.current)
+        }
+      }
+    } else {
+      setShowSkipHint(false)
+    }
+    return undefined
+  }, [galaxyPhase])
+
+  // Keyboard/touch listener for skip
+  useEffect(() => {
+    if (!showSkipHint) return undefined
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      // Ignore modifier keys and specific navigation keys
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      handleSkip()
+    }
+
+    const handleTouchStart = (): void => {
+      handleSkip()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('touchstart', handleTouchStart, { passive: true })
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('touchstart', handleTouchStart)
+    }
+  }, [showSkipHint, handleSkip])
 
   // Handle state transitions based on auth/music state
   useEffect(() => {
@@ -113,20 +171,41 @@ export function OnboardingOverlay({ onStartLogin }: OnboardingOverlayProps): Rea
     }, 600)
   }
 
-  // Hidden state - don't render
-  if (state === 'hidden') {
+  // Hidden state - only render skip hint during revealing phase
+  if (state === 'hidden' && galaxyPhase !== 'revealing') {
     return null
   }
 
+  // During reveal, show minimal overlay with just skip hint
+  const isRevealPhase = state === 'hidden' && galaxyPhase === 'revealing'
+
   return (
     <div
-      className="absolute inset-0 z-20 flex flex-col items-center justify-center transition-all duration-500"
+      className={`
+        absolute inset-0 z-20 flex flex-col items-center justify-center transition-all duration-500
+        ${isRevealPhase ? 'pointer-events-none' : ''}
+      `}
       style={{
-        background: state === 'welcome'
-          ? 'linear-gradient(to bottom, rgba(88, 28, 135, 0.2), rgba(0, 0, 0, 0.8))'
-          : 'rgba(0, 0, 0, 0.7)',
+        background: isRevealPhase
+          ? 'transparent'
+          : state === 'welcome'
+            ? 'linear-gradient(to bottom, rgba(88, 28, 135, 0.2), rgba(0, 0, 0, 0.8))'
+            : 'rgba(0, 0, 0, 0.7)',
       }}
     >
+      {/* Skip hint during reveal phase */}
+      {showSkipHint && isRevealPhase && (
+        <div
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 pointer-events-auto animate-in fade-in slide-in-from-bottom-4 duration-500"
+          onClick={handleSkip}
+        >
+          <div className="px-6 py-3 bg-black/60 backdrop-blur-md rounded-full border border-white/20 shadow-xl cursor-pointer hover:bg-black/70 transition-colors">
+            <p className="text-white/80 text-sm font-medium">
+              Press any key to explore
+            </p>
+          </div>
+        </div>
+      )}
       {/* Welcome State */}
       {state === 'welcome' && (
         <div className="text-center animate-in fade-in duration-500">

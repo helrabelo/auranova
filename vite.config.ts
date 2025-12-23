@@ -12,17 +12,19 @@ export default defineConfig({
     }),
   ],
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@/components': path.resolve(__dirname, './src/components'),
-      '@/hooks': path.resolve(__dirname, './src/api/hooks'),
-      '@/stores': path.resolve(__dirname, './src/stores'),
-      '@/types': path.resolve(__dirname, './src/types'),
-      '@/utils': path.resolve(__dirname, './src/utils'),
-      '@/api': path.resolve(__dirname, './src/api'),
-      '@/shaders': path.resolve(__dirname, './src/shaders'),
-      '@/simulation': path.resolve(__dirname, './src/simulation'),
-    },
+    alias: [
+      // Direct barrel imports (must come before wildcard patterns)
+      { find: '@/hooks', replacement: path.resolve(__dirname, './src/api/hooks') },
+      { find: '@/stores', replacement: path.resolve(__dirname, './src/stores') },
+      { find: '@/types', replacement: path.resolve(__dirname, './src/types') },
+      { find: '@/utils', replacement: path.resolve(__dirname, './src/utils') },
+      { find: '@/api', replacement: path.resolve(__dirname, './src/api') },
+      { find: '@/shaders', replacement: path.resolve(__dirname, './src/shaders') },
+      { find: '@/simulation', replacement: path.resolve(__dirname, './src/simulation') },
+      { find: '@/components', replacement: path.resolve(__dirname, './src/components') },
+      // Catch-all for @/*
+      { find: /^@\/(.*)/, replacement: path.resolve(__dirname, './src/$1') },
+    ],
   },
   server: {
     port: 5173,

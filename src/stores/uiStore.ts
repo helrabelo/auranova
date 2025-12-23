@@ -1,6 +1,13 @@
 import { create } from 'zustand'
 import type { CameraTarget, Selection } from '@/types/domain'
 
+// Galaxy phases for the onboarding flow
+export type GalaxyPhase =
+  | 'skeleton'    // Unauthenticated: muted placeholder stars
+  | 'loading'     // Authenticated, fetching data: skeleton with pulse
+  | 'revealing'   // Data ready: transition from skeleton to real positions
+  | 'active'      // Full visualization
+
 interface UIState {
   // Selection state
   selection: Selection
@@ -9,6 +16,11 @@ interface UIState {
   // Camera state
   cameraTarget: CameraTarget | null
   isAnimating: boolean
+
+  // Galaxy phase state (shared between GalaxyStars and CameraController)
+  galaxyPhase: GalaxyPhase
+  revealProgress: number
+  skipReveal: boolean
 
   // UI panels
   showArtistPanel: boolean
@@ -39,6 +51,10 @@ interface UIState {
   closeSearch: () => void
   resetSelection: () => void
   resetCamera: () => void
+  setGalaxyPhase: (phase: GalaxyPhase) => void
+  setRevealProgress: (progress: number) => void
+  triggerSkipReveal: () => void
+  resetGalaxyPhase: () => void
 }
 
 const DEFAULT_CAMERA_TARGET: CameraTarget = {
@@ -55,8 +71,11 @@ export const useUIStore = create<UIState>((set) => ({
   hoveredArtistId: null,
   cameraTarget: DEFAULT_CAMERA_TARGET,
   isAnimating: false,
+  galaxyPhase: 'skeleton',
+  revealProgress: 0,
+  skipReveal: false,
   showArtistPanel: true,
-  showGenreLegend: true,
+  showGenreLegend: false,
   showControls: true,
   previewingTrackId: null,
   previewVolume: 0.5,
@@ -135,6 +154,26 @@ export const useUIStore = create<UIState>((set) => ({
     set({
       cameraTarget: DEFAULT_CAMERA_TARGET,
       isAnimating: true,
+    })
+  },
+
+  setGalaxyPhase: (phase): void => {
+    set({ galaxyPhase: phase })
+  },
+
+  setRevealProgress: (progress): void => {
+    set({ revealProgress: progress })
+  },
+
+  triggerSkipReveal: (): void => {
+    set({ skipReveal: true })
+  },
+
+  resetGalaxyPhase: (): void => {
+    set({
+      galaxyPhase: 'skeleton',
+      revealProgress: 0,
+      skipReveal: false,
     })
   },
 }))

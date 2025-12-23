@@ -33,6 +33,7 @@
     "paths": {
       "@/*": ["src/*"],
       "@/components/*": ["src/components/*"],
+      "@/hooks": ["src/api/hooks/index.ts"],
       "@/hooks/*": ["src/api/hooks/*"],
       "@/stores/*": ["src/stores/*"],
       "@/types/*": ["src/types/*"],

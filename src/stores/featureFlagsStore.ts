@@ -25,9 +25,9 @@ interface FeatureFlagsState {
 export const useFeatureFlagsStore = create<FeatureFlagsState>()(
   persist(
     (set) => ({
-      // Initial state - debug off in production, nebulas enabled, labels on
+      // Initial state - debug off in production, nebulas disabled for performance, labels on
       debugMode: false,
-      nebulasEnabled: true,
+      nebulasEnabled: false,
       showSettings: false,
       showLabels: true,
 

@@ -1,4 +1,4 @@
-import { useRef, useMemo, useCallback, useEffect, useState } from 'react'
+import { useRef, useMemo, useCallback, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
@@ -7,6 +7,7 @@ import { useMusicStore } from '@/stores/musicStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useAudioAnalyzer } from '@/audio'
+import { useReducedMotion } from '@/hooks'
 import type { GalaxyArtist, EvolutionStatus } from '@/types/domain'
 
 // Import shaders as raw text
@@ -17,13 +18,6 @@ const SPAWN_DURATION = 3.0 // seconds for staggered spawn animation
 const REVEAL_DURATION = 2.5 // seconds for skeleton -> real data reveal
 const SKELETON_STAR_COUNT = 50 // Number of placeholder stars
 const RETURN_VISITOR_KEY = 'auranova-has-seen-reveal'
-
-// Galaxy phases for the onboarding flow
-export type GalaxyPhase =
-  | 'skeleton'    // Unauthenticated: muted placeholder stars
-  | 'loading'     // Authenticated, fetching data: skeleton with pulse
-  | 'revealing'   // Data ready: transition from skeleton to real positions
-  | 'active'      // Full visualization
 
 interface StarData {
   positions: Float32Array
@@ -424,11 +418,17 @@ export function GalaxyStars(): React.JSX.Element | null {
   const setHoveredArtist = useUIStore((state) => state.setHoveredArtist)
   const selectArtist = useUIStore((state) => state.selectArtist)
 
-  // Phase management
-  const [phase, setPhase] = useState<GalaxyPhase>('skeleton')
-  const [revealProgress, setRevealProgress] = useState(0)
+  // Phase management - shared with CameraController via store
+  const phase = useUIStore((state) => state.galaxyPhase)
+  const setPhase = useUIStore((state) => state.setGalaxyPhase)
+  const revealProgress = useUIStore((state) => state.revealProgress)
+  const setRevealProgress = useUIStore((state) => state.setRevealProgress)
+  const skipReveal = useUIStore((state) => state.skipReveal)
   const revealStartTimeRef = useRef<number | null>(null)
   const isReturnVisitor = useRef<boolean>(false)
+
+  // Accessibility: reduced motion support
+  const prefersReducedMotion = useReducedMotion()
 
   // Data refs
   const skeletonDataRef = useRef<StarData | null>(null)
@@ -460,8 +460,10 @@ export function GalaxyStars(): React.JSX.Element | null {
       setPhase('loading')
     } else if (artists.length > 0) {
       if (phase === 'loading' || phase === 'skeleton') {
-        // Check if this is a return visitor - skip reveal animation
-        if (isReturnVisitor.current) {
+        // Skip reveal animation for:
+        // 1. Return visitors
+        // 2. Users who prefer reduced motion
+        if (isReturnVisitor.current || prefersReducedMotion) {
           setPhase('active')
           setRevealProgress(1)
           artistDataRef.current = prepareArtistData(artists)
@@ -481,7 +483,21 @@ export function GalaxyStars(): React.JSX.Element | null {
         }
       }
     }
-  }, [isAuthenticated, isLoadingMusic, artists.length, phase, revealProgress])
+  }, [isAuthenticated, isLoadingMusic, artists.length, phase, revealProgress, prefersReducedMotion, setPhase, setRevealProgress])
+
+  // Handle skip reveal trigger (from keyboard/touch input)
+  useEffect(() => {
+    if (skipReveal && phase === 'revealing') {
+      setRevealProgress(1)
+      setPhase('active')
+      // Mark as return visitor
+      try {
+        localStorage.setItem(RETURN_VISITOR_KEY, 'true')
+      } catch {
+        // localStorage not available
+      }
+    }
+  }, [skipReveal, phase, setPhase, setRevealProgress])
 
   // Update artist data when it changes
   useEffect(() => {

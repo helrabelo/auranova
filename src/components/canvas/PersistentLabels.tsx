@@ -86,7 +86,7 @@ export function PersistentLabels(): React.JSX.Element | null {
 
     // Always add top artists with full opacity (unless too far)
     for (const artist of topArtists) {
-      // Skip if this artist is being hovered or selected (shown by ArtistStars)
+      // Skip if this artist is being hovered or selected (shown by GalaxyStars)
       if (artist.id === hoveredArtistId || artist.id === selectedArtistId) continue
 
       const dx = artist.position[0] - cameraPosition[0]
