@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type {
   GalaxyData,
   GalaxyArtist,
@@ -11,7 +12,10 @@ import type {
 interface MusicState {
   // Data
   galaxyData: GalaxyData | null
+  previousGalaxyData: GalaxyData | null // For evolution comparison
   timeRange: TimeRange
+  previousTimeRange: TimeRange | null
+  isTransitioning: boolean // For animation state
   isLoading: boolean
   error: string | null
 
@@ -24,6 +28,7 @@ interface MusicState {
   setAudioProfile: (profile: AudioProfile) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
+  setTransitioning: (transitioning: boolean) => void
   reset: () => void
 
   // Selectors
@@ -45,20 +50,41 @@ const initialGalaxyData: GalaxyData = {
   },
 }
 
-export const useMusicStore = create<MusicState>((set, get) => ({
-  // Initial state
-  galaxyData: null,
-  timeRange: 'medium_term',
-  isLoading: false,
-  error: null,
+export const useMusicStore = create<MusicState>()(
+  persist(
+    (set, get) => ({
+      // Initial state
+      galaxyData: null,
+      previousGalaxyData: null,
+      timeRange: 'medium_term',
+      previousTimeRange: null,
+      isTransitioning: false,
+      isLoading: false,
+      error: null,
 
   // Actions
   setGalaxyData: (data): void => {
-    set({ galaxyData: data, error: null })
+    const currentData = get().galaxyData
+    set({
+      previousGalaxyData: currentData,
+      galaxyData: data,
+      error: null,
+      isTransitioning: currentData !== null, // Only transition if we had previous data
+    })
   },
 
   setTimeRange: (range): void => {
-    set({ timeRange: range })
+    const currentRange = get().timeRange
+    if (currentRange !== range) {
+      set({
+        previousTimeRange: currentRange,
+        timeRange: range,
+      })
+    }
+  },
+
+  setTransitioning: (transitioning): void => {
+    set({ isTransitioning: transitioning })
   },
 
   setArtists: (artists): void => {
@@ -104,6 +130,9 @@ export const useMusicStore = create<MusicState>((set, get) => ({
   reset: (): void => {
     set({
       galaxyData: null,
+      previousGalaxyData: null,
+      previousTimeRange: null,
+      isTransitioning: false,
       isLoading: false,
       error: null,
     })
@@ -126,4 +155,13 @@ export const useMusicStore = create<MusicState>((set, get) => ({
       []
     )
   },
-}))
+    }),
+    {
+      name: 'auranova-music-preferences',
+      partialize: (state) => ({
+        // Only persist the time range selection
+        timeRange: state.timeRange,
+      }),
+    }
+  )
+)

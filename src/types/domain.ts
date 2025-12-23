@@ -1,5 +1,8 @@
 // Domain types for the galaxy visualization
 
+// Evolution status for artists across time ranges
+export type EvolutionStatus = 'stable' | 'new' | 'fading' | 'rising' | 'falling'
+
 export interface GalaxyArtist {
   id: string
   name: string
@@ -14,6 +17,9 @@ export interface GalaxyArtist {
   size: number // Based on popularity/listen count
   color: string // Based on primary genre
   brightness: number // Based on energy/valence
+  // Evolution tracking (for time range transitions)
+  evolutionStatus?: EvolutionStatus
+  rankChange?: number // Positive = moved up, negative = moved down
 }
 
 export interface GalaxyGenre {
