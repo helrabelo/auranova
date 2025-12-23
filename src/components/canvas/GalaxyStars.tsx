@@ -15,7 +15,8 @@ import starVertexShader from '@/shaders/star.vert?raw'
 import starFragmentShader from '@/shaders/star.frag?raw'
 
 const SPAWN_DURATION = 3.0 // seconds for staggered spawn animation
-const REVEAL_DURATION = 2.5 // seconds for skeleton -> real data reveal
+const REVEAL_DURATION = 2.5 // seconds for skeleton -> real data reveal (first visit)
+const QUICK_REVEAL_DURATION = 0.4 // seconds for quick reveal (return visitors)
 const SKELETON_STAR_COUNT = 50 // Number of placeholder stars
 const RETURN_VISITOR_KEY = 'auranova-has-seen-reveal'
 
@@ -150,78 +151,6 @@ function prepareArtistData(artists: GalaxyArtist[]): StarData {
     evolutionStatuses[i] = evolutionToNumber(artist.evolutionStatus)
     activations[i] = 1 // Fully activated for real data
   })
-
-  return { positions, colors, sizes, brightnesses, phases, evolutionStatuses, spawnDelays, activations }
-}
-
-/**
- * Create blended data for skeleton-to-real transition
- */
-function createTransitionData(
-  skeletonData: StarData,
-  artistData: StarData,
-  progress: number
-): StarData {
-  const artistCount = artistData.positions.length / 3
-  const skeletonCount = skeletonData.positions.length / 3
-  const maxCount = Math.max(artistCount, skeletonCount)
-
-  const positions = new Float32Array(maxCount * 3)
-  const colors = new Float32Array(maxCount * 3)
-  const sizes = new Float32Array(maxCount)
-  const brightnesses = new Float32Array(maxCount)
-  const phases = new Float32Array(maxCount)
-  const evolutionStatuses = new Float32Array(maxCount)
-  const spawnDelays = new Float32Array(maxCount)
-  const activations = new Float32Array(maxCount)
-
-  const easedProgress = easeOutCubic(progress)
-
-  for (let i = 0; i < maxCount; i++) {
-    const hasArtist = i < artistCount
-    const hasSkeleton = i < skeletonCount
-
-    if (hasArtist && hasSkeleton) {
-      // Interpolate between skeleton and artist
-      for (let j = 0; j < 3; j++) {
-        positions[i * 3 + j] = THREE.MathUtils.lerp(
-          skeletonData.positions[i * 3 + j],
-          artistData.positions[i * 3 + j],
-          easedProgress
-        )
-        colors[i * 3 + j] = THREE.MathUtils.lerp(
-          skeletonData.colors[i * 3 + j],
-          artistData.colors[i * 3 + j],
-          easedProgress
-        )
-      }
-      sizes[i] = THREE.MathUtils.lerp(skeletonData.sizes[i], artistData.sizes[i], easedProgress)
-      brightnesses[i] = THREE.MathUtils.lerp(skeletonData.brightnesses[i], artistData.brightnesses[i], easedProgress)
-    } else if (hasArtist) {
-      // New artist appearing from center
-      const artistScale = easedProgress
-      for (let j = 0; j < 3; j++) {
-        positions[i * 3 + j] = artistData.positions[i * 3 + j] * artistScale
-        colors[i * 3 + j] = artistData.colors[i * 3 + j]
-      }
-      sizes[i] = artistData.sizes[i] * artistScale
-      brightnesses[i] = artistData.brightnesses[i] * artistScale
-    } else {
-      // Skeleton star fading out
-      const fadeOut = 1 - easedProgress
-      for (let j = 0; j < 3; j++) {
-        positions[i * 3 + j] = skeletonData.positions[i * 3 + j]
-        colors[i * 3 + j] = skeletonData.colors[i * 3 + j]
-      }
-      sizes[i] = skeletonData.sizes[i] * fadeOut
-      brightnesses[i] = skeletonData.brightnesses[i] * fadeOut
-    }
-
-    phases[i] = hasArtist ? artistData.phases[i] : (hasSkeleton ? skeletonData.phases[i] : 0)
-    evolutionStatuses[i] = hasArtist ? artistData.evolutionStatuses[i] : 0
-    spawnDelays[i] = hasArtist ? artistData.spawnDelays[i] : (hasSkeleton ? skeletonData.spawnDelays[i] : 0)
-    activations[i] = easedProgress
-  }
 
   return { positions, colors, sizes, brightnesses, phases, evolutionStatuses, spawnDelays, activations }
 }
@@ -426,6 +355,7 @@ export function GalaxyStars(): React.JSX.Element | null {
   const skipReveal = useUIStore((state) => state.skipReveal)
   const revealStartTimeRef = useRef<number | null>(null)
   const isReturnVisitor = useRef<boolean>(false)
+  const revealDurationRef = useRef<number>(REVEAL_DURATION)
 
   // Accessibility: reduced motion support
   const prefersReducedMotion = useReducedMotion()
@@ -460,16 +390,18 @@ export function GalaxyStars(): React.JSX.Element | null {
       setPhase('loading')
     } else if (artists.length > 0) {
       if (phase === 'loading' || phase === 'skeleton') {
-        // Skip reveal animation for:
-        // 1. Return visitors
-        // 2. Users who prefer reduced motion
-        if (isReturnVisitor.current || prefersReducedMotion) {
+        // Users who prefer reduced motion skip animation entirely
+        if (prefersReducedMotion) {
           setPhase('active')
           setRevealProgress(1)
           artistDataRef.current = prepareArtistData(artists)
           return
         }
-        // First-time visitor - trigger reveal animation
+        // Set reveal duration based on visitor type
+        // Return visitors get a quick transition, first-time visitors get full animation
+        revealDurationRef.current = isReturnVisitor.current ? QUICK_REVEAL_DURATION : REVEAL_DURATION
+
+        // Trigger reveal animation (both first-time and return visitors)
         setPhase('revealing')
         revealStartTimeRef.current = null // Will be set in animation frame
         artistDataRef.current = prepareArtistData(artists)
@@ -506,42 +438,95 @@ export function GalaxyStars(): React.JSX.Element | null {
     }
   }, [artists, phase])
 
-  // Current star data based on phase
+  // Calculate max star count for geometry capacity
+  const maxStarCount = useMemo(() => {
+    const artistCount = artists.length
+    return Math.max(SKELETON_STAR_COUNT, artistCount, 1)
+  }, [artists.length])
+
+  // Current star data based on phase - only changes on phase transitions, NOT during reveal
+  // During reveal, we update geometry attributes directly in useFrame
   const currentStarData = useMemo((): StarData | null => {
     if (phase === 'skeleton' || phase === 'loading') {
       return skeletonDataRef.current
     }
-    if (phase === 'revealing' && skeletonDataRef.current && artistDataRef.current) {
-      return createTransitionData(skeletonDataRef.current, artistDataRef.current, revealProgress)
+    if (phase === 'revealing') {
+      // Return skeleton data - we'll interpolate in useFrame
+      // This prevents geometry recreation every frame
+      return skeletonDataRef.current
     }
     if (phase === 'active' && artistDataRef.current) {
       return artistDataRef.current
     }
     return skeletonDataRef.current
-  }, [phase, revealProgress])
+  }, [phase]) // Note: revealProgress removed from deps!
 
-  // Create geometry
+  // Create geometry with max capacity - only recreate when phase changes (not during reveal)
   const geometry = useMemo(() => {
     if (!currentStarData) return null
 
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.BufferAttribute(currentStarData.positions, 3))
-    geo.setAttribute('aColor', new THREE.BufferAttribute(currentStarData.colors, 3))
-    geo.setAttribute('aSize', new THREE.BufferAttribute(currentStarData.sizes, 1))
-    geo.setAttribute('aBrightness', new THREE.BufferAttribute(currentStarData.brightnesses, 1))
-    geo.setAttribute('aPhase', new THREE.BufferAttribute(currentStarData.phases, 1))
-    geo.setAttribute('aEvolution', new THREE.BufferAttribute(currentStarData.evolutionStatuses, 1))
-    geo.setAttribute('aSpawnDelay', new THREE.BufferAttribute(currentStarData.spawnDelays, 1))
-    geo.setAttribute('aActivation', new THREE.BufferAttribute(currentStarData.activations, 1))
-    return geo
-  }, [currentStarData])
+    // Create geometry with enough capacity for all stars
+    const count = phase === 'revealing' || phase === 'active' ? maxStarCount : SKELETON_STAR_COUNT
 
-  // Update current positions ref
-  useEffect(() => {
-    if (currentStarData) {
-      currentPositionsRef.current = new Float32Array(currentStarData.positions)
+    const geo = new THREE.BufferGeometry()
+
+    // Create buffer attributes with proper capacity
+    const positions = new Float32Array(count * 3)
+    const colors = new Float32Array(count * 3)
+    const sizes = new Float32Array(count)
+    const brightnesses = new Float32Array(count)
+    const phases = new Float32Array(count)
+    const evolutionStatuses = new Float32Array(count)
+    const spawnDelays = new Float32Array(count)
+    const activations = new Float32Array(count)
+
+    // Copy current star data
+    const copyCount = Math.min(count, currentStarData.positions.length / 3)
+    for (let i = 0; i < copyCount; i++) {
+      positions[i * 3] = currentStarData.positions[i * 3]
+      positions[i * 3 + 1] = currentStarData.positions[i * 3 + 1]
+      positions[i * 3 + 2] = currentStarData.positions[i * 3 + 2]
+      colors[i * 3] = currentStarData.colors[i * 3]
+      colors[i * 3 + 1] = currentStarData.colors[i * 3 + 1]
+      colors[i * 3 + 2] = currentStarData.colors[i * 3 + 2]
+      sizes[i] = currentStarData.sizes[i]
+      brightnesses[i] = currentStarData.brightnesses[i]
+      phases[i] = currentStarData.phases[i]
+      evolutionStatuses[i] = currentStarData.evolutionStatuses[i]
+      spawnDelays[i] = currentStarData.spawnDelays[i]
+      activations[i] = currentStarData.activations[i]
     }
-  }, [currentStarData])
+
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3))
+    geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1))
+    geo.setAttribute('aBrightness', new THREE.BufferAttribute(brightnesses, 1))
+    geo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1))
+    geo.setAttribute('aEvolution', new THREE.BufferAttribute(evolutionStatuses, 1))
+    geo.setAttribute('aSpawnDelay', new THREE.BufferAttribute(spawnDelays, 1))
+    geo.setAttribute('aActivation', new THREE.BufferAttribute(activations, 1))
+
+    // Set draw range to actual count
+    geo.setDrawRange(0, copyCount)
+
+    return geo
+  }, [currentStarData, phase, maxStarCount])
+
+  // Update current positions ref - ensure it has capacity for all artists
+  useEffect(() => {
+    // Use max capacity to ensure we can store all artist positions during reveal
+    const capacity = maxStarCount * 3
+    if (!currentPositionsRef.current || currentPositionsRef.current.length < capacity) {
+      currentPositionsRef.current = new Float32Array(capacity)
+    }
+    // Copy initial data if available
+    if (currentStarData) {
+      const copyLength = Math.min(currentStarData.positions.length, capacity)
+      for (let i = 0; i < copyLength; i++) {
+        currentPositionsRef.current[i] = currentStarData.positions[i]
+      }
+    }
+  }, [currentStarData, maxStarCount])
 
   // Shader material
   const shaderMaterial = useMemo(() => {
@@ -572,12 +557,18 @@ export function GalaxyStars(): React.JSX.Element | null {
   // Spawn animation tracking
   const fadeStartTimeRef = useRef<number | null>(null)
   const hasStartedFade = useRef(false)
+  const skipSpawnAnimation = useRef(false)
+  const spawnDurationRef = useRef<number>(SPAWN_DURATION)
 
   useEffect(() => {
     if (currentStarData && !hasStartedFade.current) {
       hasStartedFade.current = true
+      // Skip spawn animation only for reduced motion preference
+      skipSpawnAnimation.current = prefersReducedMotion
+      // Use faster spawn for return visitors
+      spawnDurationRef.current = isReturnVisitor.current ? 0.5 : SPAWN_DURATION
     }
-  }, [currentStarData])
+  }, [currentStarData, prefersReducedMotion])
 
   // Interaction handlers
   const { handlePointerMove, handleClick } = useStarInteraction(
@@ -608,14 +599,19 @@ export function GalaxyStars(): React.JSX.Element | null {
         materialRef.current.uniforms.uAudioAverage.value = phase === 'loading' ? 0.15 + pulse : 0
       }
 
-      // Spawn animation
+      // Spawn animation (skip for reduced motion, faster for return visitors)
       if (hasStartedFade.current) {
-        if (fadeStartTimeRef.current === null) {
-          fadeStartTimeRef.current = state.clock.elapsedTime
+        if (skipSpawnAnimation.current) {
+          // Instantly show all stars for reduced motion preference
+          materialRef.current.uniforms.uSpawnProgress.value = 1
+        } else {
+          if (fadeStartTimeRef.current === null) {
+            fadeStartTimeRef.current = state.clock.elapsedTime
+          }
+          const elapsed = state.clock.elapsedTime - fadeStartTimeRef.current
+          const spawnProgress = Math.min(elapsed / spawnDurationRef.current, 1)
+          materialRef.current.uniforms.uSpawnProgress.value = spawnProgress
         }
-        const elapsed = state.clock.elapsedTime - fadeStartTimeRef.current
-        const spawnProgress = Math.min(elapsed / SPAWN_DURATION, 1)
-        materialRef.current.uniforms.uSpawnProgress.value = spawnProgress
       }
 
       // Phase uniform
@@ -628,42 +624,150 @@ export function GalaxyStars(): React.JSX.Element | null {
           revealStartTimeRef.current = state.clock.elapsedTime
         }
         const elapsed = state.clock.elapsedTime - revealStartTimeRef.current
-        const progress = Math.min(elapsed / REVEAL_DURATION, 1)
+        const progress = Math.min(elapsed / revealDurationRef.current, 1)
         setRevealProgress(progress)
         materialRef.current.uniforms.uRevealProgress.value = progress
       }
     }
 
-    // Update geometry during transitions
-    if (geometryRef.current && currentStarData && (phase === 'revealing')) {
+    // Update geometry during reveal transition - interpolate between skeleton and artist data
+    if (geometryRef.current && phase === 'revealing' && skeletonDataRef.current && artistDataRef.current) {
+      const skeleton = skeletonDataRef.current
+      const artist = artistDataRef.current
+
       const posAttr = geometryRef.current.getAttribute('position')
       const colorAttr = geometryRef.current.getAttribute('aColor')
       const sizeAttr = geometryRef.current.getAttribute('aSize')
       const brightnessAttr = geometryRef.current.getAttribute('aBrightness')
+      const activationAttr = geometryRef.current.getAttribute('aActivation')
+      const evolutionAttr = geometryRef.current.getAttribute('aEvolution')
+      const spawnDelayAttr = geometryRef.current.getAttribute('aSpawnDelay')
 
-      if (posAttr && colorAttr && sizeAttr && brightnessAttr) {
-        const count = currentStarData.positions.length / 3
-        for (let i = 0; i < count; i++) {
-          (posAttr.array as Float32Array)[i * 3] = currentStarData.positions[i * 3]
-          ;(posAttr.array as Float32Array)[i * 3 + 1] = currentStarData.positions[i * 3 + 1]
-          ;(posAttr.array as Float32Array)[i * 3 + 2] = currentStarData.positions[i * 3 + 2]
+      if (posAttr && colorAttr && sizeAttr && brightnessAttr && activationAttr) {
+        const artistCount = artist.positions.length / 3
+        const skeletonCount = skeleton.positions.length / 3
+        const maxCount = Math.max(artistCount, skeletonCount)
 
-          ;(colorAttr.array as Float32Array)[i * 3] = currentStarData.colors[i * 3]
-          ;(colorAttr.array as Float32Array)[i * 3 + 1] = currentStarData.colors[i * 3 + 1]
-          ;(colorAttr.array as Float32Array)[i * 3 + 2] = currentStarData.colors[i * 3 + 2]
+        // Use current revealProgress from store for interpolation
+        const easedProgress = easeOutCubic(revealProgress)
 
-          ;(sizeAttr.array as Float32Array)[i] = currentStarData.sizes[i]
-          ;(brightnessAttr.array as Float32Array)[i] = currentStarData.brightnesses[i]
+        for (let i = 0; i < maxCount; i++) {
+          const hasArtist = i < artistCount
+          const hasSkeleton = i < skeletonCount
+
+          if (hasArtist && hasSkeleton) {
+            // Interpolate between skeleton and artist
+            for (let j = 0; j < 3; j++) {
+              const skeletonVal = skeleton.positions[i * 3 + j]
+              const artistVal = artist.positions[i * 3 + j]
+              ;(posAttr.array as Float32Array)[i * 3 + j] = skeletonVal + (artistVal - skeletonVal) * easedProgress
+
+              const skeletonColor = skeleton.colors[i * 3 + j]
+              const artistColor = artist.colors[i * 3 + j]
+              ;(colorAttr.array as Float32Array)[i * 3 + j] = skeletonColor + (artistColor - skeletonColor) * easedProgress
+            }
+            ;(sizeAttr.array as Float32Array)[i] = skeleton.sizes[i] + (artist.sizes[i] - skeleton.sizes[i]) * easedProgress
+            ;(brightnessAttr.array as Float32Array)[i] = skeleton.brightnesses[i] + (artist.brightnesses[i] - skeleton.brightnesses[i]) * easedProgress
+            ;(activationAttr.array as Float32Array)[i] = easedProgress
+            if (evolutionAttr) (evolutionAttr.array as Float32Array)[i] = artist.evolutionStatuses[i]
+            if (spawnDelayAttr) (spawnDelayAttr.array as Float32Array)[i] = artist.spawnDelays[i]
+          } else if (hasArtist) {
+            // New artist appearing from center
+            for (let j = 0; j < 3; j++) {
+              ;(posAttr.array as Float32Array)[i * 3 + j] = artist.positions[i * 3 + j] * easedProgress
+              ;(colorAttr.array as Float32Array)[i * 3 + j] = artist.colors[i * 3 + j]
+            }
+            ;(sizeAttr.array as Float32Array)[i] = artist.sizes[i] * easedProgress
+            ;(brightnessAttr.array as Float32Array)[i] = artist.brightnesses[i] * easedProgress
+            ;(activationAttr.array as Float32Array)[i] = easedProgress
+            if (evolutionAttr) (evolutionAttr.array as Float32Array)[i] = artist.evolutionStatuses[i]
+            if (spawnDelayAttr) (spawnDelayAttr.array as Float32Array)[i] = artist.spawnDelays[i]
+          } else if (hasSkeleton) {
+            // Skeleton star fading out
+            const fadeOut = 1 - easedProgress
+            for (let j = 0; j < 3; j++) {
+              ;(posAttr.array as Float32Array)[i * 3 + j] = skeleton.positions[i * 3 + j]
+              ;(colorAttr.array as Float32Array)[i * 3 + j] = skeleton.colors[i * 3 + j]
+            }
+            ;(sizeAttr.array as Float32Array)[i] = skeleton.sizes[i] * fadeOut
+            ;(brightnessAttr.array as Float32Array)[i] = skeleton.brightnesses[i] * fadeOut
+            ;(activationAttr.array as Float32Array)[i] = 1 - easedProgress
+          }
         }
+
         posAttr.needsUpdate = true
         colorAttr.needsUpdate = true
         sizeAttr.needsUpdate = true
         brightnessAttr.needsUpdate = true
+        activationAttr.needsUpdate = true
+        if (evolutionAttr) evolutionAttr.needsUpdate = true
+        if (spawnDelayAttr) spawnDelayAttr.needsUpdate = true
+
+        // Update draw range to include all stars
+        geometryRef.current.setDrawRange(0, maxCount)
+
+        // Update positions ref for interactions (use interpolated artist positions for click detection)
+        if (currentPositionsRef.current && artistCount > 0) {
+          const positionsToUse = posAttr.array as Float32Array
+          for (let i = 0; i < artistCount * 3; i++) {
+            currentPositionsRef.current[i] = positionsToUse[i]
+          }
+        }
+      }
+    }
+
+    // When transitioning from revealing to active, update geometry with final artist data
+    if (geometryRef.current && phase === 'active' && artistDataRef.current) {
+      const artist = artistDataRef.current
+      const artistCount = artist.positions.length / 3
+      const posAttr = geometryRef.current.getAttribute('position')
+
+      // Check if geometry has enough capacity for all artists
+      // If not, skip update - React will create new geometry with proper capacity on next render
+      const geometryCapacity = posAttr ? (posAttr.array as Float32Array).length / 3 : 0
+      if (geometryCapacity < artistCount) {
+        // Geometry doesn't have enough capacity, skip update
+        return
+      }
+
+      // Only update once when transitioning to active
+      const needsUpdate = geometryRef.current.userData.lastPhase !== 'active'
+      geometryRef.current.userData.lastPhase = 'active'
+
+      if (needsUpdate) {
+        const colorAttr = geometryRef.current.getAttribute('aColor')
+        const sizeAttr = geometryRef.current.getAttribute('aSize')
+        const brightnessAttr = geometryRef.current.getAttribute('aBrightness')
+        const activationAttr = geometryRef.current.getAttribute('aActivation')
+        const evolutionAttr = geometryRef.current.getAttribute('aEvolution')
+        const spawnDelayAttr = geometryRef.current.getAttribute('aSpawnDelay')
+
+        for (let i = 0; i < artistCount; i++) {
+          for (let j = 0; j < 3; j++) {
+            ;(posAttr.array as Float32Array)[i * 3 + j] = artist.positions[i * 3 + j]
+            ;(colorAttr.array as Float32Array)[i * 3 + j] = artist.colors[i * 3 + j]
+          }
+          ;(sizeAttr.array as Float32Array)[i] = artist.sizes[i]
+          ;(brightnessAttr.array as Float32Array)[i] = artist.brightnesses[i]
+          ;(activationAttr.array as Float32Array)[i] = 1
+          if (evolutionAttr) (evolutionAttr.array as Float32Array)[i] = artist.evolutionStatuses[i]
+          if (spawnDelayAttr) (spawnDelayAttr.array as Float32Array)[i] = artist.spawnDelays[i]
+        }
+
+        posAttr.needsUpdate = true
+        colorAttr.needsUpdate = true
+        sizeAttr.needsUpdate = true
+        brightnessAttr.needsUpdate = true
+        activationAttr.needsUpdate = true
+        if (evolutionAttr) evolutionAttr.needsUpdate = true
+        if (spawnDelayAttr) spawnDelayAttr.needsUpdate = true
+
+        geometryRef.current.setDrawRange(0, artistCount)
 
         // Update positions ref for interactions
         if (currentPositionsRef.current) {
-          for (let i = 0; i < count * 3; i++) {
-            currentPositionsRef.current[i] = currentStarData.positions[i]
+          for (let i = 0; i < artistCount * 3; i++) {
+            currentPositionsRef.current[i] = artist.positions[i]
           }
         }
       }
