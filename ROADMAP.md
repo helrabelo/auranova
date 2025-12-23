@@ -38,11 +38,11 @@ wo# Auranova Roadmap
 - [x] Smooth play/pause transitions
 - [x] Volume control
 
-## Phase 6: Time + Evolution (Week 7)
-- [ ] Toggle between time ranges
-- [ ] Animated transition between states
-- [ ] "New discoveries" highlighting
-- [ ] Fading stars (artists you stopped listening to)
+## Phase 6: Time + Evolution (Week 7) ✅ COMPLETE
+- [x] Toggle between time ranges
+- [x] Animated transition between states
+- [x] "New discoveries" highlighting
+- [x] Fading stars (artists you stopped listening to)
 
 ## Phase 7: Polish + Ship (Weeks 8-9)
 - [ ] Artist detail panel

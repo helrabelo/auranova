@@ -3,11 +3,18 @@ import { Canvas } from '@react-three/fiber'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useMusicStore } from '@/stores/musicStore'
+import { useSpotifyPlayer } from '@/audio/useSpotifyPlayer'
+import { usePlaybackStore } from '@/stores/playbackStore'
+import { useFeatureFlagsStore } from '@/stores/featureFlagsStore'
 import { AppShell } from '@/components/layout/AppShell'
 import { Scene } from '@/components/canvas/Scene'
 import { LoginButton } from '@/components/ui/LoginButton'
 import { ArtistPanel } from '@/components/ui/ArtistPanel'
+import { NowPlayingBar } from '@/components/ui/NowPlayingBar'
+import { GenreLegend } from '@/components/ui/GenreLegend'
+import { SettingsPanel } from '@/components/ui/SettingsPanel'
 import { DataLoader } from '@/components/DataLoader'
+import { TouchHints } from '@/components/canvas/TouchControls'
 import './App.css'
 
 // Create a client
@@ -156,6 +163,51 @@ function LoadingOverlay(): React.JSX.Element | null {
   return null
 }
 
+/**
+ * Initializes Spotify Web Playback SDK when user is authenticated.
+ * Shows SDK status for debugging (only visible in debug mode).
+ */
+function SpotifyPlayerProvider(): React.JSX.Element | null {
+  const { isReady, isLoading, error } = useSpotifyPlayer()
+  const mode = usePlaybackStore((state) => state.mode)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const debugMode = useFeatureFlagsStore((state) => state.debugMode)
+
+  // Only show status when authenticated and in debug mode
+  if (!isAuthenticated || !debugMode) return null
+
+  // Show SDK status indicator (top left, only in debug mode)
+  return (
+    <div className="fixed top-16 left-4 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 text-xs">
+      {isLoading ? (
+        <>
+          <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+          <span className="text-yellow-400">Connecting player...</span>
+        </>
+      ) : error ? (
+        <>
+          <div className="w-2 h-2 rounded-full bg-red-500" />
+          <span className="text-red-400">
+            {error.type === 'account' ? 'Premium required for full playback' : error.message}
+          </span>
+        </>
+      ) : isReady ? (
+        <>
+          <div className="w-2 h-2 rounded-full bg-[#1DB954]" />
+          <span className="text-[#1DB954]">
+            {mode === 'sdk' ? 'Full playback ready' : 'Player ready'}
+          </span>
+        </>
+      ) : (
+        <>
+          <div className="w-2 h-2 rounded-full bg-gray-500" />
+          <span className="text-gray-400">Preview mode</span>
+        </>
+      )}
+    </div>
+  )
+}
+
 function AppContent(): React.JSX.Element {
   const { isAuthenticated, isLoading } = useAuthStore()
 
@@ -163,6 +215,9 @@ function AppContent(): React.JSX.Element {
     <AppShell>
       {/* Data loader - handles fetching and transforming Spotify data */}
       <DataLoader />
+
+      {/* Spotify SDK player initialization and debug indicator */}
+      <SpotifyPlayerProvider />
 
       {/* Galaxy always renders in background */}
       <GalaxyView />
@@ -173,8 +228,20 @@ function AppContent(): React.JSX.Element {
       {/* Loading overlay for music data */}
       <LoadingOverlay />
 
+      {/* Settings panel with feature flags */}
+      {isAuthenticated && <SettingsPanel />}
+
+      {/* Genre legend overlay */}
+      {isAuthenticated && <GenreLegend />}
+
+      {/* Mobile touch hints */}
+      {isAuthenticated && <TouchHints />}
+
       {/* Selected artist panel */}
       {isAuthenticated && <ArtistPanel />}
+
+      {/* Persistent now playing bar */}
+      {isAuthenticated && <NowPlayingBar />}
 
       {/* Login view when not authenticated */}
       {!isAuthenticated && !isLoading && <LoginView />}
