@@ -37,6 +37,7 @@ export function GenreLegend(): React.JSX.Element | null {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const galaxyData = useMusicStore((state) => state.galaxyData)
   const selectedGenreId = useUIStore((state) => state.selection.genreId)
+  const selectedArtistId = useUIStore((state) => state.selection.artistId)
   const selectGenre = useUIStore((state) => state.selectGenre)
 
   // Sort genres by artist count (most popular first)
@@ -56,9 +57,12 @@ export function GenreLegend(): React.JSX.Element | null {
 
   if (!galaxyData || sortedGenres.length === 0) return null
 
+  // Hide on mobile when artist panel is open to avoid overlap
+  const hideOnMobile = selectedArtistId ? 'hidden sm:block' : ''
+
   return (
-    <div className="fixed bottom-20 left-4 z-40">
-      <div className="bg-black/80 backdrop-blur-sm rounded-lg border border-white/10 overflow-hidden max-w-[200px]">
+    <div className={`fixed bottom-20 left-4 z-40 ${hideOnMobile}`}>
+      <div className="bg-black/80 backdrop-blur-sm rounded-lg border border-white/10 overflow-hidden max-w-[180px] sm:max-w-[200px]">
         {/* Header */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}

@@ -37,9 +37,9 @@ export function ArtistPanel(): React.JSX.Element | null {
   }
 
   return (
-    <div className="absolute right-4 top-20 w-80 bg-black/80 backdrop-blur-lg rounded-xl border border-white/10 overflow-hidden z-30">
+    <div className="fixed inset-x-0 bottom-0 sm:absolute sm:inset-auto sm:right-4 sm:top-20 sm:w-80 sm:bottom-auto bg-black/95 sm:bg-black/80 backdrop-blur-lg sm:rounded-xl border-t sm:border border-white/10 overflow-hidden z-30 max-h-[70vh] sm:max-h-none flex flex-col">
       {/* Header with image */}
-      <div className="relative h-32 bg-gradient-to-b from-purple-900/50 to-transparent">
+      <div className="relative h-24 sm:h-32 bg-gradient-to-b from-purple-900/50 to-transparent shrink-0">
         {artist.imageUrl && (
           <img
             src={artist.imageUrl}
@@ -49,7 +49,7 @@ export function ArtistPanel(): React.JSX.Element | null {
         )}
         <button
           onClick={() => selectArtist(null)}
-          className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors"
+          className="absolute top-2 right-2 sm:top-3 sm:right-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/70 hover:bg-black/90 transition-colors"
           aria-label="Close panel"
         >
           <svg
@@ -68,11 +68,16 @@ export function ArtistPanel(): React.JSX.Element | null {
         </button>
       </div>
 
+      {/* Mobile drag handle */}
+      <div className="sm:hidden flex justify-center py-2 shrink-0">
+        <div className="w-10 h-1 rounded-full bg-white/30" />
+      </div>
+
       {/* Content */}
-      <div className="p-4 -mt-8 relative">
+      <div className="p-4 -mt-6 sm:-mt-8 relative overflow-y-auto flex-1">
         {/* Artist image */}
         <div
-          className="w-20 h-20 rounded-full border-4 border-black overflow-hidden mb-3"
+          className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-black overflow-hidden mb-3"
           style={{
             backgroundColor: artist.color,
             boxShadow: `0 0 20px ${artist.color}40`,
@@ -92,10 +97,10 @@ export function ArtistPanel(): React.JSX.Element | null {
         </div>
 
         {/* Name */}
-        <h3 className="text-xl font-bold text-white mb-1">{artist.name}</h3>
+        <h3 className="text-lg sm:text-xl font-bold text-white mb-1">{artist.name}</h3>
 
         {/* Stats */}
-        <div className="flex gap-4 mb-4 text-sm">
+        <div className="flex gap-4 mb-3 sm:mb-4 text-sm">
           <div>
             <span className="text-gray-400">Followers</span>
             <p className="text-white font-medium">
@@ -110,10 +115,10 @@ export function ArtistPanel(): React.JSX.Element | null {
 
         {/* Genres */}
         {artist.genres.length > 0 && (
-          <div className="mb-4">
-            <span className="text-gray-400 text-sm">Genres</span>
+          <div className="mb-3 sm:mb-4">
+            <span className="text-gray-400 text-xs sm:text-sm">Genres</span>
             <div className="flex flex-wrap gap-1 mt-1">
-              {artist.genres.slice(0, 5).map((genre) => (
+              {artist.genres.slice(0, 4).map((genre) => (
                 <span
                   key={genre}
                   className="px-2 py-0.5 rounded-full text-xs bg-white/10 text-gray-300"
@@ -140,15 +145,17 @@ export function ArtistPanel(): React.JSX.Element | null {
       </div>
 
       {/* Audio preview player */}
-      {isLoadingTracks ? (
-        <div className="px-4 py-3 text-center">
-          <div className="animate-pulse text-gray-400 text-sm">
-            Loading previews...
+      <div className="shrink-0 pb-16 sm:pb-0">
+        {isLoadingTracks ? (
+          <div className="px-4 py-3 text-center">
+            <div className="animate-pulse text-gray-400 text-sm">
+              Loading previews...
+            </div>
           </div>
-        </div>
-      ) : artistTracks && artistTracks.length > 0 ? (
-        <AudioPreviewPlayer tracks={artistTracks} artistName={artist.name} />
-      ) : null}
+        ) : artistTracks && artistTracks.length > 0 ? (
+          <AudioPreviewPlayer tracks={artistTracks} artistName={artist.name} />
+        ) : null}
+      </div>
     </div>
   )
 }

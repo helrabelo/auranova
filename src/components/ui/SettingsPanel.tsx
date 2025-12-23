@@ -1,4 +1,5 @@
 import { useFeatureFlagsStore } from '@/stores/featureFlagsStore'
+import { useUIStore } from '@/stores/uiStore'
 
 export function SettingsPanel(): React.JSX.Element | null {
   const showSettings = useFeatureFlagsStore((state) => state.showSettings)
@@ -9,13 +10,17 @@ export function SettingsPanel(): React.JSX.Element | null {
   const toggleNebulas = useFeatureFlagsStore((state) => state.toggleNebulas)
   const showLabels = useFeatureFlagsStore((state) => state.showLabels)
   const toggleLabels = useFeatureFlagsStore((state) => state.toggleLabels)
+  const selectedArtistId = useUIStore((state) => state.selection.artistId)
+
+  // Hide on mobile when artist panel is open
+  const hideOnMobile = selectedArtistId ? 'hidden sm:block' : ''
 
   return (
     <>
       {/* Settings gear button - bottom right */}
       <button
         onClick={toggleSettings}
-        className="fixed bottom-20 right-4 z-50 p-2 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors"
+        className={`fixed bottom-20 right-4 z-50 p-2 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors ${hideOnMobile}`}
         aria-label="Toggle settings"
       >
         <svg
@@ -35,7 +40,7 @@ export function SettingsPanel(): React.JSX.Element | null {
 
       {/* Settings dropdown - opens upward from bottom right */}
       {showSettings && (
-        <div className="fixed bottom-32 right-4 z-50 w-64 bg-black/90 backdrop-blur-sm rounded-lg border border-white/10 p-4 shadow-xl">
+        <div className={`fixed bottom-32 right-4 z-50 w-64 bg-black/90 backdrop-blur-sm rounded-lg border border-white/10 p-4 shadow-xl ${hideOnMobile}`}>
           <h3 className="text-white font-medium mb-4">Settings</h3>
 
           <div className="space-y-4">
