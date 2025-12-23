@@ -118,3 +118,51 @@ export interface SpotifyError {
     message: string
   }
 }
+
+// Playback types for Web Playback SDK integration
+
+export interface SpotifyDevice {
+  id: string | null
+  is_active: boolean
+  is_private_session: boolean
+  is_restricted: boolean
+  name: string
+  type: string
+  volume_percent: number | null
+  supports_volume: boolean
+}
+
+export interface SpotifyPlaybackState {
+  device: SpotifyDevice
+  repeat_state: 'off' | 'track' | 'context'
+  shuffle_state: boolean
+  context: {
+    type: string
+    href: string
+    external_urls: { spotify: string }
+    uri: string
+  } | null
+  timestamp: number
+  progress_ms: number | null
+  is_playing: boolean
+  item: SpotifyTrack | null
+  currently_playing_type: 'track' | 'episode' | 'ad' | 'unknown'
+  actions: {
+    disallows: {
+      resuming?: boolean
+      pausing?: boolean
+      seeking?: boolean
+      skipping_prev?: boolean
+      skipping_next?: boolean
+    }
+  }
+}
+
+export interface SpotifyDevicesResponse {
+  devices: SpotifyDevice[]
+}
+
+export interface PlaybackError {
+  type: 'initialization' | 'authentication' | 'account' | 'playback'
+  message: string
+}

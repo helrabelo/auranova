@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { audioManager } from '@/audio'
+import { spotifyPlayer } from '@/audio/SpotifyPlayer'
 import type { SpotifyTrack } from '@/api/spotify/types'
 import { useUIStore } from '@/stores/uiStore'
+import { usePlaybackStore, type PlaybackMode } from '@/stores/playbackStore'
+import type { NowPlayingTrack } from '@/stores/playbackStore'
 
 interface AudioPreviewPlayerProps {
   tracks: SpotifyTrack[]
@@ -9,7 +12,7 @@ interface AudioPreviewPlayerProps {
 }
 
 /**
- * Audio preview player component for playing artist track previews
+ * Unified audio player component supporting both SDK (full tracks) and preview (30s) modes
  */
 export function AudioPreviewPlayer({
   tracks,
@@ -20,17 +23,53 @@ export function AudioPreviewPlayer({
   const [duration, setDuration] = useState(0)
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0)
 
+  // UI Store (for preview mode compatibility)
   const previewingTrackId = useUIStore((state) => state.previewingTrackId)
   const setPreviewingTrack = useUIStore((state) => state.setPreviewingTrack)
   const previewVolume = useUIStore((state) => state.previewVolume)
   const setPreviewVolume = useUIStore((state) => state.setPreviewVolume)
 
-  // Filter tracks with preview URLs
-  const playableTracks = tracks.filter((track) => track.preview_url !== null)
+  // Playback Store (for SDK mode)
+  const mode = usePlaybackStore((state) => state.mode)
+  const playerState = usePlaybackStore((state) => state.playerState)
+  const sdkReady = usePlaybackStore((state) => state.sdkReady)
+  const setCurrentTrack = usePlaybackStore((state) => state.setCurrentTrack)
+  const setPlaybackIsPlaying = usePlaybackStore((state) => state.setIsPlaying)
+
+  // Determine effective mode
+  const effectiveMode: PlaybackMode = sdkReady && mode === 'sdk' ? 'sdk' : 'preview'
+
+  // For preview mode, filter tracks with preview URLs
+  const playableTracks =
+    effectiveMode === 'sdk'
+      ? tracks // SDK can play all tracks
+      : tracks.filter((track) => track.preview_url !== null)
+
   const currentTrack = playableTracks[currentTrackIndex]
 
-  // Sync with audio manager state
+  // Sync with SDK player state
   useEffect(() => {
+    if (effectiveMode !== 'sdk' || !playerState) return
+
+    setIsPlaying(playerState.isPlaying)
+    setCurrentTime(playerState.position / 1000) // Convert ms to seconds
+    setDuration(playerState.duration / 1000)
+
+    // Find matching track index when SDK plays a different track
+    if (playerState.currentTrack?.id) {
+      const index = playableTracks.findIndex(
+        (t) => t.id === playerState.currentTrack?.id
+      )
+      if (index !== -1 && index !== currentTrackIndex) {
+        setCurrentTrackIndex(index)
+      }
+    }
+  }, [effectiveMode, playerState, playableTracks, currentTrackIndex])
+
+  // Sync with audio manager state (preview mode)
+  useEffect(() => {
+    if (effectiveMode !== 'preview') return
+
     const unsubPlay = audioManager.on('play', () => {
       setIsPlaying(true)
     })
@@ -45,14 +84,11 @@ export function AudioPreviewPlayer({
         setCurrentTrackIndex((prev) => prev + 1)
       }
     })
-    const unsubTimeUpdate = audioManager.on(
-      'timeupdate',
-      (data: unknown) => {
-        const timeData = data as { currentTime: number; duration: number }
-        setCurrentTime(timeData.currentTime)
-        setDuration(timeData.duration)
-      }
-    )
+    const unsubTimeUpdate = audioManager.on('timeupdate', (data: unknown) => {
+      const timeData = data as { currentTime: number; duration: number }
+      setCurrentTime(timeData.currentTime)
+      setDuration(timeData.duration)
+    })
 
     return () => {
       unsubPlay()
@@ -60,58 +96,129 @@ export function AudioPreviewPlayer({
       unsubEnded()
       unsubTimeUpdate()
     }
-  }, [currentTrackIndex, playableTracks.length])
+  }, [effectiveMode, currentTrackIndex, playableTracks.length])
 
   // Update volume when store changes
   useEffect(() => {
-    audioManager.setVolume(previewVolume)
-  }, [previewVolume])
+    if (effectiveMode === 'preview') {
+      audioManager.setVolume(previewVolume)
+    } else if (effectiveMode === 'sdk') {
+      spotifyPlayer.setVolume(previewVolume)
+    }
+  }, [previewVolume, effectiveMode])
 
-  // Check if current track is playing
+  // Check if current track is playing (preview mode)
   useEffect(() => {
+    if (effectiveMode !== 'preview') return
+
     if (currentTrack && audioManager.getCurrentTrackId() === currentTrack.id) {
       setIsPlaying(audioManager.isPlaying())
     } else {
       setIsPlaying(false)
     }
-  }, [currentTrack])
+  }, [currentTrack, effectiveMode])
 
   const handlePlayPause = useCallback(async () => {
-    if (!currentTrack?.preview_url) return
+    if (!currentTrack) return
 
-    if (isPlaying && audioManager.getCurrentTrackId() === currentTrack.id) {
-      await audioManager.pause()
-      setPreviewingTrack(null)
+    // Helper to set current track in global store
+    const updateGlobalTrack = () => {
+      const nowPlayingTrack: NowPlayingTrack = {
+        id: currentTrack.id,
+        name: currentTrack.name,
+        artistName: artistName,
+        albumName: currentTrack.album.name,
+        albumImageUrl: currentTrack.album.images[0]?.url ?? null,
+        durationMs: currentTrack.duration_ms,
+        uri: currentTrack.uri,
+        previewUrl: currentTrack.preview_url,
+      }
+      setCurrentTrack(nowPlayingTrack)
+      setPlaybackIsPlaying(true)
+    }
+
+    if (effectiveMode === 'sdk') {
+      // SDK mode - full track playback
+      if (isPlaying && spotifyPlayer.getCurrentTrackId() === currentTrack.id) {
+        await spotifyPlayer.pause()
+        setPreviewingTrack(null)
+        setPlaybackIsPlaying(false)
+      } else {
+        // Play all tracks starting from current index
+        const trackUris = playableTracks.map((t) => t.uri)
+        await spotifyPlayer.playTracks(trackUris, currentTrackIndex)
+        setPreviewingTrack(currentTrack.id)
+        updateGlobalTrack()
+      }
     } else {
-      await audioManager.play(currentTrack.preview_url, currentTrack.id)
-      setPreviewingTrack(currentTrack.id)
-    }
-  }, [currentTrack, isPlaying, setPreviewingTrack])
+      // Preview mode - 30s previews
+      if (!currentTrack.preview_url) return
 
-  const handlePrevious = useCallback(() => {
+      if (isPlaying && audioManager.getCurrentTrackId() === currentTrack.id) {
+        await audioManager.pause()
+        setPreviewingTrack(null)
+        setPlaybackIsPlaying(false)
+      } else {
+        await audioManager.play(currentTrack.preview_url, currentTrack.id)
+        setPreviewingTrack(currentTrack.id)
+        updateGlobalTrack()
+      }
+    }
+  }, [
+    currentTrack,
+    effectiveMode,
+    isPlaying,
+    playableTracks,
+    currentTrackIndex,
+    setPreviewingTrack,
+    artistName,
+    setCurrentTrack,
+    setPlaybackIsPlaying,
+  ])
+
+  const handlePrevious = useCallback(async () => {
     if (currentTrackIndex > 0) {
-      setCurrentTrackIndex((prev) => prev - 1)
+      const newIndex = currentTrackIndex - 1
+      setCurrentTrackIndex(newIndex)
       setCurrentTime(0)
-    }
-  }, [currentTrackIndex])
 
-  const handleNext = useCallback(() => {
-    if (currentTrackIndex < playableTracks.length - 1) {
-      setCurrentTrackIndex((prev) => prev + 1)
-      setCurrentTime(0)
+      // Auto-play in SDK mode
+      if (effectiveMode === 'sdk' && isPlaying) {
+        const trackUris = playableTracks.map((t) => t.uri)
+        await spotifyPlayer.playTracks(trackUris, newIndex)
+      }
     }
-  }, [currentTrackIndex, playableTracks.length])
+  }, [currentTrackIndex, effectiveMode, isPlaying, playableTracks])
+
+  const handleNext = useCallback(async () => {
+    if (currentTrackIndex < playableTracks.length - 1) {
+      const newIndex = currentTrackIndex + 1
+      setCurrentTrackIndex(newIndex)
+      setCurrentTime(0)
+
+      // Auto-play in SDK mode
+      if (effectiveMode === 'sdk' && isPlaying) {
+        const trackUris = playableTracks.map((t) => t.uri)
+        await spotifyPlayer.playTracks(trackUris, newIndex)
+      }
+    }
+  }, [currentTrackIndex, playableTracks, effectiveMode, isPlaying])
 
   const handleSeek = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+    async (e: React.MouseEvent<HTMLDivElement>) => {
       if (!duration) return
       const rect = e.currentTarget.getBoundingClientRect()
       const x = e.clientX - rect.left
       const percentage = x / rect.width
       const newTime = percentage * duration
-      audioManager.seek(newTime)
+
+      if (effectiveMode === 'sdk') {
+        await spotifyPlayer.seek(newTime * 1000) // Convert to ms
+      } else {
+        audioManager.seek(newTime)
+      }
     },
-    [duration]
+    [duration, effectiveMode]
   )
 
   const handleVolumeChange = useCallback(
@@ -131,8 +238,20 @@ export function AudioPreviewPlayer({
   // No playable tracks
   if (playableTracks.length === 0) {
     return (
-      <div className="px-4 py-3 text-center text-gray-400 text-sm">
-        No preview available
+      <div className="px-4 py-4 border-t border-white/10">
+        <div className="flex items-center gap-3 text-gray-400">
+          <div className="w-10 h-10 rounded bg-white/5 flex items-center justify-center">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-gray-300">
+              Previews unavailable
+            </p>
+            <p className="text-xs text-gray-500">Listen on Spotify instead</p>
+          </div>
+        </div>
       </div>
     )
   }
@@ -155,9 +274,17 @@ export function AudioPreviewPlayer({
             />
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-white text-sm font-medium truncate">
-              {currentTrack?.name}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-white text-sm font-medium truncate">
+                {currentTrack?.name}
+              </p>
+              {/* Mode badge */}
+              {effectiveMode === 'sdk' && (
+                <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium bg-[#1DB954]/20 text-[#1DB954] rounded">
+                  FULL
+                </span>
+              )}
+            </div>
             <p className="text-gray-400 text-xs truncate">{artistName}</p>
           </div>
           {/* Track counter */}
@@ -182,7 +309,11 @@ export function AudioPreviewPlayer({
         </div>
         <div className="flex justify-between text-xs text-gray-500 mt-1">
           <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(duration || 30)}</span>
+          <span>
+            {formatTime(
+              duration || (effectiveMode === 'preview' ? 30 : currentTrack?.duration_ms ? currentTrack.duration_ms / 1000 : 0)
+            )}
+          </span>
         </div>
       </div>
 
