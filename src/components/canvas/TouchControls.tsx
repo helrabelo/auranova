@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useThree, useFrame } from '@react-three/fiber'
+import { TOUCH } from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 
 interface TouchControlsProps {
@@ -42,8 +43,8 @@ export function TouchControls({
 
       // Enable touch actions
       controls.touches = {
-        ONE: 1, // ROTATE
-        TWO: 2, // DOLLY_PAN
+        ONE: TOUCH.ROTATE,
+        TWO: TOUCH.DOLLY_PAN,
       }
     }
 
