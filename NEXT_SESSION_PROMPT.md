@@ -1,152 +1,110 @@
-# AuraNova - Phase 9 Complete: Seamless Onboarding Animation
+# AuraNova - Phase 10: Mobile Pan & Nucleus Visual Enhancement
 
-## What Was Implemented
+## Tasks for This Session
 
-### 1. Unified GalaxyStars Component (`src/components/canvas/GalaxyStars.tsx`)
-A single component that handles all galaxy states:
-- **skeleton**: Unauthenticated users see 50 muted blue-gray placeholder stars in a spiral pattern
-- **loading**: Authenticated, fetching data - skeleton with subtle pulsing animation
-- **revealing**: 2.5-second cinematic transition from skeleton to real artist positions with color bloom
-- **active**: Full interactive visualization with all features
+### 1. Mobile Pan Feature (Two-Finger Drag)
 
-### 2. Updated Shaders (`src/shaders/star.vert`, `src/shaders/star.frag`)
-Enhanced shaders with phase-aware rendering:
-- Phase uniforms control brightness, saturation, and glow intensity
-- Skeleton phase: desaturated, cooler colors with gentle breathing animation
-- Loading phase: pulsing ring effects to show processing
-- Revealing phase: color bloom effect during transition
-- Active phase: full audio-reactive and evolution status effects
+Currently, mobile touch controls support:
+- **One finger**: Rotate the galaxy
+- **Two finger pinch**: Zoom in/out
 
-### 3. OnboardingOverlay Component (`src/components/ui/OnboardingOverlay.tsx`)
-Unified overlay that handles the entire auth flow:
-- **welcome**: Hero text + Spotify connect button
-- **connecting**: Pre-redirect animation with pulsing Spotify logo
-- **success**: Brief checkmark celebration after returning from Spotify
-- **loading**: Progressive loading messages with progress dots
-- **hidden**: Fades out when galaxy is ready
+**Add two-finger drag to pan the camera**, allowing users to move the view around without rotating.
 
-### 4. Return Visitor Detection
-- First-time users see the full reveal animation
-- Returning visitors skip straight to active state
-- Uses localStorage key `auranova-has-seen-reveal`
+#### Implementation Location
+- `src/components/canvas/TouchControls.tsx` - Touch gesture handling
+- `src/components/canvas/Scene.tsx` - OrbitControls configuration
 
-### 5. Scene.tsx Cleanup
-- Removed old `TestParticles` component
-- Now uses single `GalaxyStars` component for all states
-- Removed conditional rendering logic
+#### Technical Notes
+- OrbitControls supports `enablePan` which is likely disabled
+- Need to configure `touches.TWO` to support both DOLLY and PAN
+- Consider using `THREE.TOUCH.DOLLY_PAN` (value 2) which combines both
+- Current config in TouchControls.tsx:
+  ```typescript
+  controls.touches = {
+    ONE: TOUCH.ROTATE,
+    TWO: TOUCH.DOLLY_PAN, // Already set, but may need pan speed tuning
+  }
+  ```
+- May need to adjust `panSpeed` for comfortable mobile panning
+- Consider adding a three-finger gesture for pan-only if DOLLY_PAN feels awkward
 
-### 6. App.tsx Refactoring
-- Removed `LoginView` and `LoadingOverlay` components
-- Uses `OnboardingOverlay` for all onboarding states
-- Cleaner component structure
+#### Acceptance Criteria
+- Two-finger drag pans the camera (moves view left/right/up/down)
+- Pinch-to-zoom still works simultaneously
+- Pan feels smooth and responsive on mobile
+- Pan boundaries prevent getting lost in space
 
-## Files Changed
 
-### New Files
-- `src/components/canvas/GalaxyStars.tsx` - Unified galaxy component
-- `src/components/ui/OnboardingOverlay.tsx` - Onboarding flow overlay
-- `research/oauth-and-data-reveal-ux.md` - UX research documentation
+### 2. Central Nucleus Visual "Notch" Enhancement
 
-### Modified Files
-- `src/shaders/star.vert` - Added phase-aware rendering
-- `src/shaders/star.frag` - Added phase-based color/glow effects
-- `src/components/canvas/Scene.tsx` - Simplified to use GalaxyStars
-- `src/App.tsx` - Refactored to use OnboardingOverlay
-- `src/components/canvas/TouchControls.tsx` - Fixed TypeScript errors
+The central orb (`CentralOrb` component in Scene.tsx) needs a visual enhancement - add a "notch" or distinctive visual element to make it more interesting.
 
-### Deprecated (Can Be Removed)
-- `src/components/canvas/ArtistStars.tsx` - Functionality moved to GalaxyStars
-- `src/components/ui/LoginButton.tsx` - Functionality in OnboardingOverlay
-
-## How It Works
-
-### The User Journey
-
-1. **First Visit (Unauthenticated)**
-   - Galaxy shows skeleton stars in a spiral pattern
-   - Muted blue-gray colors, gentle twinkling
-   - Welcome overlay with "Explore Your Musical Universe"
-
-2. **Click "Connect with Spotify"**
-   - Brief "Taking you to Spotify..." animation
-   - Pre-auth state stored in sessionStorage
-   - Redirect to Spotify OAuth
-
-3. **Return from Spotify**
-   - "Connected!" success checkmark animation (1 second)
-   - Progressive loading messages (5 phases)
-   - Galaxy transitions from skeleton to loading phase
-
-4. **Data Loaded**
-   - 2.5-second reveal animation
-   - Stars morph from skeleton to real positions
-   - Colors bloom from gray to genre colors
-   - localStorage marked as return visitor
-
-5. **Return Visits**
-   - Skip reveal animation
-   - Go straight to active phase
-   - Instant visualization
-
-## Technical Details
-
-### GalaxyStars Phase Transitions
+#### Current Implementation
 ```typescript
-type GalaxyPhase =
-  | 'skeleton'   // Unauthenticated: muted stars
-  | 'loading'    // Fetching data: pulsing skeleton
-  | 'revealing'  // Transition animation
-  | 'active'     // Full visualization
+function CentralOrb(): React.JSX.Element {
+  const meshRef = useRef<THREE.Mesh>(null)
+
+  useFrame((state) => {
+    if (meshRef.current) {
+      meshRef.current.scale.setScalar(
+        1 + Math.sin(state.clock.elapsedTime * 2) * 0.05
+      )
+    }
+  })
+
+  return (
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[2, 32, 32]} />
+      <meshBasicMaterial color="#8b5cf6" transparent opacity={0.6} />
+    </mesh>
+  )
+}
 ```
 
-### Shader Uniforms
-- `uPhase`: 0=skeleton, 1=loading, 2=revealing, 3=active
-- `uRevealProgress`: 0-1 during reveal animation
-- `uSpawnProgress`: 0-1 staggered spawn animation
+#### Enhancement Ideas
+- Add a glowing ring/torus around the nucleus
+- Add particle emissions from the center
+- Add a pulsing inner core with different color
+- Add an accretion disk effect (flat ring with gradient)
+- Add a "notch" indent or protrusion with emissive glow
+- Add orbiting mini-particles
 
-### Key Constants
-- `SPAWN_DURATION`: 3 seconds for initial star spawn
-- `REVEAL_DURATION`: 2.5 seconds for skeleton-to-real transition
-- `SKELETON_STAR_COUNT`: 50 placeholder stars
+#### Acceptance Criteria
+- Nucleus has a visually distinctive feature beyond plain sphere
+- Animation/glow makes it feel alive
+- Doesn't distract from the artist stars
+- Performs well on mobile
 
-## Next Steps (Phase 10 Ideas)
 
-1. **Camera Animation During Reveal**
-   - Pull back to show full galaxy at reveal moment
-   - Smooth camera transition to frame user's data
+## Current State Summary
 
-2. **Audio Feedback**
-   - Subtle ambient space sounds
-   - Audio cue during reveal moment
+### Recent Changes (This Session)
+- Fixed mobile touch rotation (was using wrong TOUCH constant)
+- Improved mobile UI with bottom sheet artist panel
+- Added loading timeout (30s) with retry/logout options
+- Genre legend and settings hide on mobile when artist panel is open
+- Responsive header and controls
 
-3. **Skip Button**
-   - "Press any key to explore" after 2 seconds of reveal
-   - For impatient users
+### Key Files Reference
+- `src/components/canvas/Scene.tsx` - Main 3D scene with CentralOrb
+- `src/components/canvas/TouchControls.tsx` - Mobile touch handling
+- `src/components/canvas/CameraController.tsx` - Camera animations
+- `src/components/ui/ArtistPanel.tsx` - Mobile-friendly bottom sheet
 
-4. **Accessibility**
-   - Reduced motion mode
-   - Skip animations entirely option
-
-5. **Mobile Optimization**
-   - Faster reveal on mobile
-   - Touch-friendly interactions
-
-## Testing
-
-Run the dev server and test:
+### Testing
 ```bash
 npm run dev
 ```
 
-Test the flow:
-1. Clear localStorage: `localStorage.clear()`
-2. Refresh page - should see skeleton stars
-3. Click "Connect with Spotify"
-4. Complete OAuth
-5. Watch the reveal animation
-6. Refresh - should skip reveal (return visitor)
+Test on mobile device or Chrome DevTools mobile emulation:
+1. Test two-finger pan gesture
+2. Verify pinch-to-zoom still works
+3. Check nucleus visual enhancement
+4. Ensure performance is acceptable on mobile
 
-Clear return visitor flag:
-```javascript
-localStorage.removeItem('auranova-has-seen-reveal')
-```
+
+## Notes
+
+- Spotify app is in Development Mode - only allowlisted users can test
+- To add test users: Spotify Dashboard → App → Settings → User Management
+- For public release, need to submit app for Spotify review
