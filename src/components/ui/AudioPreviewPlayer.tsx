@@ -139,16 +139,45 @@ export function AudioPreviewPlayer({
 
     if (effectiveMode === 'sdk') {
       // SDK mode - full track playback
-      if (isPlaying && spotifyPlayer.getCurrentTrackId() === currentTrack.id) {
-        await spotifyPlayer.pause()
-        setPreviewingTrack(null)
-        setPlaybackIsPlaying(false)
+      const currentlyPlayingThisTrack = spotifyPlayer.getCurrentTrackId() === currentTrack.id
+      const sdkIsPlaying = spotifyPlayer.isPlaying()
+
+      if (sdkIsPlaying && currentlyPlayingThisTrack) {
+        try {
+          await spotifyPlayer.pause()
+          setPreviewingTrack(null)
+          setPlaybackIsPlaying(false)
+          setIsPlaying(false)
+        } catch (err) {
+          console.error('[AudioPreviewPlayer] Failed to pause:', err)
+        }
       } else {
-        // Play all tracks starting from current index
-        const trackUris = playableTracks.map((t) => t.uri)
-        await spotifyPlayer.playTracks(trackUris, currentTrackIndex)
-        setPreviewingTrack(currentTrack.id)
-        updateGlobalTrack()
+        try {
+          // Activate element for browser autoplay policy
+          await spotifyPlayer.activateElement()
+
+          // Play all tracks starting from current index
+          const trackUris = playableTracks.map((t) => t.uri)
+          await spotifyPlayer.playTracks(trackUris, currentTrackIndex)
+
+          // Update state optimistically
+          setPreviewingTrack(currentTrack.id)
+          updateGlobalTrack()
+          setIsPlaying(true)
+        } catch (err) {
+          console.error('[AudioPreviewPlayer] Failed to play tracks:', err)
+          // Try falling back to preview mode if SDK fails
+          if (currentTrack.preview_url) {
+            try {
+              await audioManager.play(currentTrack.preview_url, currentTrack.id)
+              setPreviewingTrack(currentTrack.id)
+              updateGlobalTrack()
+              setIsPlaying(true)
+            } catch (previewErr) {
+              console.error('[AudioPreviewPlayer] Preview fallback also failed:', previewErr)
+            }
+          }
+        }
       }
     } else {
       // Preview mode - 30s previews
@@ -257,8 +286,12 @@ export function AudioPreviewPlayer({
   }
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0
+  // Use both local state and SDK state for more reliable detection
   const isCurrentTrackPlaying =
-    previewingTrackId === currentTrack?.id && isPlaying
+    currentTrack && (
+      (previewingTrackId === currentTrack.id && isPlaying) ||
+      (effectiveMode === 'sdk' && spotifyPlayer.getCurrentTrackId() === currentTrack.id && spotifyPlayer.isPlaying())
+    )
 
   return (
     <div className="border-t border-white/10 bg-gradient-to-b from-black/0 to-black/30">

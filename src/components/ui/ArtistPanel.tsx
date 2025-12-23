@@ -37,7 +37,7 @@ export function ArtistPanel(): React.JSX.Element | null {
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 sm:absolute sm:inset-auto sm:right-4 sm:top-20 sm:w-80 sm:bottom-auto bg-black/95 sm:bg-black/80 backdrop-blur-lg sm:rounded-xl border-t sm:border border-white/10 overflow-hidden z-30 max-h-[70vh] sm:max-h-none flex flex-col">
+    <div className="fixed inset-x-0 bottom-0 sm:absolute sm:inset-auto sm:right-4 sm:top-20 sm:w-80 sm:bottom-auto bg-black/95 sm:bg-black/80 backdrop-blur-lg sm:rounded-xl border-t sm:border border-white/10 overflow-hidden z-50 sm:z-30 max-h-[70vh] sm:max-h-none flex flex-col">
       {/* Header with image */}
       <div className="relative h-24 sm:h-32 bg-gradient-to-b from-purple-900/50 to-transparent shrink-0">
         {artist.imageUrl && (

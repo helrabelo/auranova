@@ -63,7 +63,7 @@ export function AudioIndicator(): React.JSX.Element | null {
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
+    <div className="hidden sm:block fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
       <div className="flex items-center gap-3 px-4 py-2 bg-black/80 backdrop-blur-lg rounded-full border border-white/10 shadow-lg">
         {/* Audio visualizer bars */}
         <div className="flex items-end gap-0.5 h-4">

@@ -26,6 +26,7 @@ function PersistentLabel({
     <Html
       position={artist.position}
       center
+      zIndexRange={[10, 0]}
       style={{
         pointerEvents: 'none',
         transform: 'translateY(-20px)',
