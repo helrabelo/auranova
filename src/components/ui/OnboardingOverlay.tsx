@@ -3,6 +3,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { useMusicStore } from '@/stores/musicStore'
 import { useUIStore } from '@/stores/uiStore'
 
+const LOADING_TIMEOUT_MS = 30000 // 30 seconds max loading time
+
 /**
  * Onboarding transition states
  */
@@ -29,8 +31,8 @@ interface OnboardingOverlayProps {
 const SKIP_HINT_DELAY = 2000 // Show skip hint after 2 seconds of reveal
 
 export function OnboardingOverlay({ onStartLogin }: OnboardingOverlayProps): React.JSX.Element | null {
-  const { isAuthenticated, isLoading: authLoading, error: authError } = useAuthStore()
-  const { isLoading: musicLoading, galaxyData } = useMusicStore()
+  const { isAuthenticated, isLoading: authLoading, error: authError, logout } = useAuthStore()
+  const { isLoading: musicLoading, galaxyData, error: musicError } = useMusicStore()
 
   // Galaxy phase from store for skip functionality
   const galaxyPhase = useUIStore((state) => state.galaxyPhase)
@@ -40,9 +42,11 @@ export function OnboardingOverlay({ onStartLogin }: OnboardingOverlayProps): Rea
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0)
   const [isConnecting, setIsConnecting] = useState(false)
   const [showSkipHint, setShowSkipHint] = useState(false)
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false)
   const previousAuthRef = useRef(isAuthenticated)
   const messageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const skipHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Handle skip action (keyboard/touch)
   const handleSkip = useCallback(() => {
@@ -92,6 +96,23 @@ export function OnboardingOverlay({ onStartLogin }: OnboardingOverlayProps): Rea
       window.removeEventListener('touchstart', handleTouchStart)
     }
   }, [showSkipHint, handleSkip])
+
+  // Loading timeout - show error if stuck too long
+  useEffect(() => {
+    if (state === 'loading') {
+      setLoadingTimedOut(false)
+      loadingTimeoutRef.current = setTimeout(() => {
+        setLoadingTimedOut(true)
+      }, LOADING_TIMEOUT_MS)
+
+      return () => {
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current)
+        }
+      }
+    }
+    return undefined
+  }, [state])
 
   // Handle state transitions based on auth/music state
   useEffect(() => {
@@ -280,7 +301,7 @@ export function OnboardingOverlay({ onStartLogin }: OnboardingOverlayProps): Rea
       )}
 
       {/* Loading State (Fetching music data) */}
-      {state === 'loading' && (
+      {state === 'loading' && !loadingTimedOut && !musicError && (
         <div className="text-center">
           {/* Animated loader */}
           <div className="w-16 h-16 mx-auto mb-6 relative">
@@ -310,6 +331,40 @@ export function OnboardingOverlay({ onStartLogin }: OnboardingOverlayProps): Rea
                 `}
               />
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Loading Error / Timeout State */}
+      {state === 'loading' && (loadingTimedOut || musicError) && (
+        <div className="text-center animate-in fade-in duration-300 px-4">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-500/20 flex items-center justify-center">
+            <svg className="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <p className="text-yellow-400 font-medium mb-2">
+            {musicError ? 'Failed to load music data' : 'Taking longer than expected'}
+          </p>
+          <p className="text-gray-500 text-sm mb-4 max-w-xs mx-auto">
+            {musicError ?? 'There might be an issue connecting to Spotify. Please try again.'}
+          </p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-5 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-full transition-colors"
+            >
+              Retry
+            </button>
+            <button
+              onClick={() => {
+                logout()
+                setState('welcome')
+              }}
+              className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+            >
+              Logout
+            </button>
           </div>
         </div>
       )}
