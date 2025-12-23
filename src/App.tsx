@@ -2,17 +2,16 @@ import { useEffect, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
-import { useMusicStore } from '@/stores/musicStore'
 import { useSpotifyPlayer } from '@/audio/useSpotifyPlayer'
 import { usePlaybackStore } from '@/stores/playbackStore'
 import { useFeatureFlagsStore } from '@/stores/featureFlagsStore'
 import { AppShell } from '@/components/layout/AppShell'
 import { Scene } from '@/components/canvas/Scene'
-import { LoginButton } from '@/components/ui/LoginButton'
 import { ArtistPanel } from '@/components/ui/ArtistPanel'
 import { NowPlayingBar } from '@/components/ui/NowPlayingBar'
 import { GenreLegend } from '@/components/ui/GenreLegend'
 import { SettingsPanel } from '@/components/ui/SettingsPanel'
+import { OnboardingOverlay } from '@/components/ui/OnboardingOverlay'
 import { DataLoader } from '@/components/DataLoader'
 import { TouchHints } from '@/components/canvas/TouchControls'
 import './App.css'
@@ -45,25 +44,9 @@ function GalaxyView(): React.JSX.Element {
   )
 }
 
-function LoginView(): React.JSX.Element {
-  return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-gradient-to-b from-purple-900/20 to-black/80">
-      <div className="text-center mb-8">
-        <h2 className="text-4xl font-bold text-white mb-4">
-          Explore Your Musical Universe
-        </h2>
-        <p className="text-gray-400 max-w-md mx-auto">
-          Connect your Spotify account to transform your listening history into
-          a navigable galaxy of artists, genres, and musical connections.
-        </p>
-      </div>
-      <LoginButton />
-    </div>
-  )
-}
 
 function AuthHandler(): React.JSX.Element | null {
-  const { handleAuthCallback, checkAuth, isLoading, error } = useAuthStore()
+  const { handleAuthCallback, checkAuth } = useAuthStore()
   const callbackHandledRef = useRef(false)
 
   useEffect(() => {
@@ -101,67 +84,9 @@ function AuthHandler(): React.JSX.Element | null {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Run only once on mount
 
-  if (isLoading) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center z-30 bg-black">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center z-30 bg-black">
-        <div className="text-center">
-          <p className="text-red-400 mb-4">{error}</p>
-          <LoginButton />
-        </div>
-      </div>
-    )
-  }
-
   return null
 }
 
-function LoadingOverlay(): React.JSX.Element | null {
-  const isLoadingMusic = useMusicStore((state) => state.isLoading)
-  const musicError = useMusicStore((state) => state.error)
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
-  const galaxyData = useMusicStore((state) => state.galaxyData)
-
-  // Only show loading after authentication, before data is ready
-  if (!isAuthenticated || galaxyData) return null
-
-  if (musicError) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center z-25 bg-black/80 pointer-events-none">
-        <div className="text-center">
-          <p className="text-red-400 mb-2">Failed to load music data</p>
-          <p className="text-gray-500 text-sm">{musicError}</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (isLoadingMusic) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center z-25 bg-black/80 pointer-events-none">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading your musical universe...</p>
-          <p className="text-gray-600 text-sm mt-2">
-            Fetching top artists from Spotify
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  return null
-}
 
 /**
  * Initializes Spotify Web Playback SDK when user is authenticated.
@@ -209,7 +134,7 @@ function SpotifyPlayerProvider(): React.JSX.Element | null {
 }
 
 function AppContent(): React.JSX.Element {
-  const { isAuthenticated, isLoading } = useAuthStore()
+  const { isAuthenticated, login } = useAuthStore()
 
   return (
     <AppShell>
@@ -222,11 +147,11 @@ function AppContent(): React.JSX.Element {
       {/* Galaxy always renders in background */}
       <GalaxyView />
 
-      {/* Auth handler overlay */}
+      {/* Auth handler - processes OAuth callback */}
       <AuthHandler />
 
-      {/* Loading overlay for music data */}
-      <LoadingOverlay />
+      {/* Unified onboarding overlay - handles welcome, connecting, success, and loading states */}
+      <OnboardingOverlay onStartLogin={login} />
 
       {/* Settings panel with feature flags */}
       {isAuthenticated && <SettingsPanel />}
@@ -242,9 +167,6 @@ function AppContent(): React.JSX.Element {
 
       {/* Persistent now playing bar */}
       {isAuthenticated && <NowPlayingBar />}
-
-      {/* Login view when not authenticated */}
-      {!isAuthenticated && !isLoading && <LoginView />}
     </AppShell>
   )
 }

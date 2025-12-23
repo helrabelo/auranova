@@ -1,6 +1,6 @@
 // Star vertex shader
 // Handles point-based star rendering with size and color variations
-// Includes audio-reactive pulsing and evolution status effects
+// Includes audio-reactive pulsing, evolution status effects, and phase transitions
 
 uniform float uTime;
 uniform float uPixelRatio;
@@ -16,12 +16,17 @@ uniform float uAudioAverage; // Overall average (0-1)
 // Spawn animation uniforms
 uniform float uSpawnProgress; // 0-1 spawn animation progress
 
+// Phase uniforms (0=skeleton, 1=loading, 2=revealing, 3=active)
+uniform float uPhase;
+uniform float uRevealProgress; // 0-1 reveal animation progress
+
 attribute float aSize;
 attribute vec3 aColor;
 attribute float aBrightness;
 attribute float aPhase; // Random phase offset for twinkling
 attribute float aEvolution; // 0=stable, 1=new, 2=fading, 3=rising, 4=falling
 attribute float aSpawnDelay; // 0-1 staggered spawn delay
+attribute float aActivation; // 0=skeleton, 1=active (optional, defaults to 1)
 
 varying vec3 vColor;
 varying float vBrightness;
@@ -29,6 +34,8 @@ varying float vDistance;
 varying float vAudioPulse;
 varying float vEvolution;
 varying float vSpawnOpacity; // Per-star spawn opacity
+varying float vActivation; // Pass activation to fragment shader
+varying float vPhase; // Pass phase to fragment shader
 
 void main() {
   // Transform position through model and view matrices
@@ -41,67 +48,93 @@ void main() {
   // Calculate distance from camera for depth-based effects
   vDistance = -viewPosition.z;
 
+  // Read activation (default to 1.0 if not provided)
+  vActivation = aActivation;
+  vPhase = uPhase;
+
   // Calculate per-star spawn opacity with stagger
-  // Each star starts appearing after its delay passes
-  // The spawn animation lasts for a fraction of the total duration per star
-  float spawnWindowSize = 0.4; // Each star takes 40% of total duration to fade in
+  float spawnWindowSize = 0.4;
   float localProgress = (uSpawnProgress - aSpawnDelay) / spawnWindowSize;
   vSpawnOpacity = clamp(localProgress, 0.0, 1.0);
   // Apply ease-out for smoother appearance
   vSpawnOpacity = 1.0 - pow(1.0 - vSpawnOpacity, 3.0);
 
-  // Calculate size with:
-  // - Base size from attribute
-  // - Perspective scaling (smaller when further)
-  // - Pixel ratio correction
-  // - Subtle twinkling animation
+  // Calculate size with various factors
   float twinkle = 1.0 + 0.15 * sin(uTime * 2.0 + aPhase * 6.28318);
   float perspectiveScale = 300.0 / max(vDistance, 1.0);
 
-  // Audio-reactive size pulse
-  // Use phase to vary which stars respond to which frequencies
+  // Audio-reactive size pulse (reduced in skeleton/loading phases)
   float audioResponse = 0.0;
+  float audioMultiplier = uPhase >= 3.0 ? 1.0 : 0.3; // Full audio only in active phase
+
   if (aPhase < 0.33) {
-    // Bass-reactive stars (larger, slower pulse)
-    audioResponse = uAudioBass * 0.5;
+    audioResponse = uAudioBass * 0.5 * audioMultiplier;
   } else if (aPhase < 0.66) {
-    // Mid-reactive stars (medium response)
-    audioResponse = uAudioMid * 0.4;
+    audioResponse = uAudioMid * 0.4 * audioMultiplier;
   } else {
-    // Treble-reactive stars (quick, subtle pulse)
-    audioResponse = uAudioTreble * 0.3;
+    audioResponse = uAudioTreble * 0.3 * audioMultiplier;
   }
 
-  // Combine audio response with general average for cohesion
-  float audioPulse = 1.0 + audioResponse + uAudioAverage * 0.2;
+  float audioPulse = 1.0 + audioResponse + uAudioAverage * 0.2 * audioMultiplier;
   vAudioPulse = audioPulse;
 
-  // Evolution-based size modifiers
+  // Evolution-based size modifiers (only in active phase)
   float evolutionSizeBoost = 1.0;
-  if (aEvolution == 1.0) {
-    // New stars: pulsing size effect to draw attention
-    evolutionSizeBoost = 1.0 + 0.3 * sin(uTime * 4.0);
-  } else if (aEvolution == 2.0) {
-    // Fading stars: smaller and less prominent
-    evolutionSizeBoost = 0.7;
-  } else if (aEvolution == 3.0) {
-    // Rising stars: slightly larger
-    evolutionSizeBoost = 1.15;
-  } else if (aEvolution == 4.0) {
-    // Falling stars: slightly smaller
-    evolutionSizeBoost = 0.9;
+  if (uPhase >= 3.0) {
+    if (aEvolution == 1.0) {
+      evolutionSizeBoost = 1.0 + 0.3 * sin(uTime * 4.0);
+    } else if (aEvolution == 2.0) {
+      evolutionSizeBoost = 0.7;
+    } else if (aEvolution == 3.0) {
+      evolutionSizeBoost = 1.15;
+    } else if (aEvolution == 4.0) {
+      evolutionSizeBoost = 0.9;
+    }
   }
 
-  // Apply spawn scale (stars grow in during spawn animation)
-  float spawnScale = 0.3 + vSpawnOpacity * 0.7; // Start at 30%, grow to 100%
+  // Skeleton/loading phase: gentle breathing animation
+  float skeletonPulse = 1.0;
+  if (uPhase < 2.0) {
+    // Slower, more subtle pulse for skeleton/loading
+    float breathe = sin(uTime * 0.8 + aPhase * 6.28) * 0.15;
+    skeletonPulse = 1.0 + breathe;
 
-  gl_PointSize = aSize * uBaseSize * perspectiveScale * uPixelRatio * twinkle * audioPulse * evolutionSizeBoost * spawnScale;
+    // Extra pulse during loading phase
+    if (uPhase >= 1.0) {
+      float loadingPulse = sin(uTime * 2.0) * 0.1;
+      skeletonPulse += loadingPulse;
+    }
+  }
+
+  // Apply spawn scale
+  float spawnScale = 0.3 + vSpawnOpacity * 0.7;
+
+  // Calculate final size
+  float baseSize = aSize * uBaseSize;
+
+  // Skeleton stars are slightly smaller
+  if (uPhase < 2.0) {
+    baseSize *= 0.7;
+  }
+
+  gl_PointSize = baseSize * perspectiveScale * uPixelRatio * twinkle * audioPulse * evolutionSizeBoost * spawnScale * skeletonPulse;
 
   // Clamp size
   gl_PointSize = clamp(gl_PointSize, 2.0, 80.0);
 
   // Pass to fragment shader
   vColor = aColor;
-  vBrightness = aBrightness * twinkle * (1.0 + audioResponse * 0.5);
+
+  // Brightness adjusted for phase
+  float phaseBrightness = aBrightness;
+  if (uPhase < 2.0) {
+    // Dimmer in skeleton/loading phases
+    phaseBrightness *= 0.5;
+  } else if (uPhase < 3.0) {
+    // Gradually increase during reveal
+    phaseBrightness = mix(phaseBrightness * 0.5, phaseBrightness, uRevealProgress);
+  }
+
+  vBrightness = phaseBrightness * twinkle * (1.0 + audioResponse * 0.5);
   vEvolution = aEvolution;
 }

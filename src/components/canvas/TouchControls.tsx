@@ -110,9 +110,13 @@ export function TouchControls({
       momentum.x *= 0.95
       momentum.y *= 0.95
 
-      // Apply to controls rotation
-      controls.rotateLeft(momentum.x * 0.01)
-      controls.rotateUp(momentum.y * 0.01)
+      // Apply to controls rotation (using type assertion for methods)
+      const orbitControls = controls as OrbitControlsImpl & {
+        rotateLeft: (angle: number) => void
+        rotateUp: (angle: number) => void
+      }
+      orbitControls.rotateLeft(momentum.x * 0.01)
+      orbitControls.rotateUp(momentum.y * 0.01)
     }
   })
 
@@ -137,6 +141,7 @@ export function TouchHints(): React.JSX.Element | null {
       const timer = setTimeout(() => setShowHints(true), 2000)
       return () => clearTimeout(timer)
     }
+    return undefined
   }, [])
 
   const handleDismiss = () => {

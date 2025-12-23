@@ -1,76 +1,17 @@
-import { useRef, useMemo } from 'react'
+import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { OrbitControls, Stars, Stats } from '@react-three/drei'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
-import type { Points, BufferGeometry, PointsMaterial } from 'three'
 import * as THREE from 'three'
 import { useMusicStore } from '@/stores/musicStore'
 import { useFeatureFlagsStore } from '@/stores/featureFlagsStore'
-import { ArtistStars } from './ArtistStars'
+import { GalaxyStars } from './GalaxyStars'
 import { CameraController } from './CameraController'
 import { ConnectionLines } from './ConnectionLines'
 import { GenreNebulae } from './GenreNebulae'
 import { PersistentLabels } from './PersistentLabels'
 import { Effects } from './Effects'
 import { TouchControls } from './TouchControls'
-
-// Test particle system - will be replaced with actual star field
-function TestParticles(): React.JSX.Element {
-  const pointsRef = useRef<Points<BufferGeometry, PointsMaterial>>(null)
-
-  // Generate geometry with buffer attributes
-  const geometry = useMemo(() => {
-    const count = 500
-    const positions = new Float32Array(count * 3)
-    const colors = new Float32Array(count * 3)
-
-    for (let i = 0; i < count; i++) {
-      // Random positions in a sphere
-      const radius = 20 + Math.random() * 30
-      const theta = Math.random() * Math.PI * 2
-      const phi = Math.acos(2 * Math.random() - 1)
-
-      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta)
-      positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta)
-      positions[i * 3 + 2] = radius * Math.cos(phi)
-
-      // Random colors (galaxy-like)
-      const hue = 0.5 + Math.random() * 0.3 // Blue to purple range
-      const color = new THREE.Color()
-      color.setHSL(hue, 0.8, 0.6 + Math.random() * 0.3)
-
-      colors[i * 3] = color.r
-      colors[i * 3 + 1] = color.g
-      colors[i * 3 + 2] = color.b
-    }
-
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-    return geo
-  }, [])
-
-  // Animate rotation
-  useFrame((_, delta) => {
-    if (pointsRef.current) {
-      pointsRef.current.rotation.y += delta * 0.02
-    }
-  })
-
-  return (
-    <points ref={pointsRef} geometry={geometry}>
-      <pointsMaterial
-        size={2}
-        vertexColors
-        transparent
-        opacity={0.8}
-        sizeAttenuation
-        blending={THREE.AdditiveBlending}
-        depthWrite={false}
-      />
-    </points>
-  )
-}
 
 // Central glowing orb
 function CentralOrb(): React.JSX.Element {
@@ -141,8 +82,8 @@ export function Scene(): React.JSX.Element {
       {/* Genre nebulae (render first, behind stars) - can be toggled for performance */}
       {hasArtists && nebulasEnabled && <GenreNebulae />}
 
-      {/* Artist stars (from Spotify data) or test particles (fallback) */}
-      {hasArtists ? <ArtistStars /> : <TestParticles />}
+      {/* Unified galaxy stars - handles skeleton, loading, revealing, and active states */}
+      <GalaxyStars />
 
       {/* Persistent artist labels (top artists + nearby) */}
       {hasArtists && showLabels && <PersistentLabels />}
