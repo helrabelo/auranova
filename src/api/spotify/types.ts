@@ -166,3 +166,20 @@ export interface PlaybackError {
   type: 'initialization' | 'authentication' | 'account' | 'playback'
   message: string
 }
+
+// User profile
+export interface SpotifyUserProfile {
+  id: string
+  display_name: string | null
+  email?: string
+  images: SpotifyImage[]
+  followers: {
+    total: number
+  }
+  country?: string
+  product?: 'free' | 'premium' | 'open'
+  external_urls: {
+    spotify: string
+  }
+  uri: string
+}

@@ -157,15 +157,15 @@ export function TouchHints(): React.JSX.Element | null {
     <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-50 bg-black/80 backdrop-blur-sm rounded-lg border border-white/10 p-4 max-w-[280px] animate-fade-in">
       <div className="text-white text-sm space-y-3">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">1</span>
+          <span className="text-2xl">☝️</span>
           <span className="text-gray-300">One finger to rotate</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-2xl">2</span>
-          <span className="text-gray-300">Pinch to zoom in/out</span>
+          <span className="text-2xl">✌️</span>
+          <span className="text-gray-300">Two fingers to zoom & pan</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-lg">Tap</span>
+          <span className="text-2xl">👆</span>
           <span className="text-gray-300">Tap a star to see details</span>
         </div>
       </div>

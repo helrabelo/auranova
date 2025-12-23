@@ -5,6 +5,7 @@ import type {
   SpotifyAudioFeaturesResponse,
   SpotifyRelatedArtistsResponse,
   SpotifyArtistTopTracksResponse,
+  SpotifyUserProfile,
   TimeRange,
 } from './types'
 
@@ -120,4 +121,9 @@ export async function getArtistTopTracks(
   return spotifyFetch<SpotifyArtistTopTracksResponse>(
     `/artists/${artistId}/top-tracks?market=${market}`
   )
+}
+
+// Get current user's profile
+export async function getUserProfile(): Promise<SpotifyUserProfile> {
+  return spotifyFetch<SpotifyUserProfile>('/me')
 }

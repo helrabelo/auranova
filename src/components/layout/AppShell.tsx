@@ -46,7 +46,7 @@ export function AppShell({ children }: AppShellProps): React.JSX.Element {
 
       {/* Controls hint - hidden on mobile (TouchHints handles mobile) */}
       <div className="hidden sm:block absolute bottom-4 left-4 text-xs text-gray-500 pointer-events-none">
-        <p>Drag to rotate • Scroll to zoom</p>
+        <p>Drag to rotate • Scroll to zoom • Right-click drag to pan</p>
       </div>
     </div>
   )
