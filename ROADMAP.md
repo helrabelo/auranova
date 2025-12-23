@@ -1,4 +1,4 @@
-# Auranova Roadmap
+wo# Auranova Roadmap
 
 ## Phase 1: Auth + Data (Week 1)
 - [x] Project setup
